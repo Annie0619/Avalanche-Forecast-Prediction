@@ -8,7 +8,7 @@ website:
     left:
       - href: index.qmd
         text: Home
-      - addition.qmd
+      - data_prep_eda.qmd
       - multiplication.qmd
 
 format:
