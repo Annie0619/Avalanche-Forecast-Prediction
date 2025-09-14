@@ -1,9 +1,171 @@
 ---
-title: "Adding numbers in R"
+title: "Data Preparation and EDA"
 ---
 
-To add numbers in R use `+`
+```{r echo=F}
+# read in the data
+aval <- read.csv("scotland_avalanche_forecasts_2009_2025.csv")
+
+set.seed(5073)
+library(tidyverse); library(lubridate); library(naniar); library(janitor)
+library(tidymodels); library(forcats)
+```
+
+# Investigate missing data
 
 ```{r}
-1 + 1
+# quick checks
+colnames(aval)
+colSums(is.na(aval)) # number of missing values in each column
+str(aval) # data type of each column
+
+# remove OAH: observed avalanche hazard
+aval <- aval %>% select(-OAH)
 ```
+
+```{r}
+# clean the data by casting variables as correct types
+# STEP 1 — Fix types & engineer helper features (with OAH removed)
+
+aval <- aval %>%
+  mutate(
+    # --- time features ---
+    DateTime = ymd_hms(Date, quiet = TRUE),
+    # strip out year, month and day:
+    Date     = as.Date(DateTime),
+    year     = year(Date),
+    month    = month(Date),
+    doy      = yday(Date),
+    # create a new variable: season
+    season   = factor(case_when(
+      month %in% c(12,1,2) ~ "DJF",
+      month %in% c(3,4,5)  ~ "MAM",
+      month %in% c(6,7,8)  ~ "JJA",
+      TRUE                 ~ "SON"
+    ), levels = c("DJF","MAM","JJA","SON")),
+
+    # --- categorical / IDs ---
+    Area     = factor(Area),
+    OSgrid   = as.character(OSgrid),
+    Location = as.character(Location),
+    Obs      = factor(Obs),
+
+    # --- hazard (target) as ordered factor ---
+    FAH_ord  = factor(
+      FAH,
+      # specify the following order:
+      levels  = c("Low","Moderate","Considerable -","Considerable","Considerable +","High"),
+      ordered = TRUE
+    ),
+
+    # --- circular encodings for angles ---
+    # since 0 degrees is equivalent to 360, we change these variables.
+    # ex. 350 is close to 0 directionally, but numerically far
+    # map angles onto unit circle
+    Wind.Dir_sin        = sin(pi * Wind.Dir/180),
+    Wind.Dir_cos        = cos(pi * Wind.Dir/180),
+    Summit.Wind.Dir_sin = sin(pi * Summit.Wind.Dir/180),
+    Summit.Wind.Dir_cos = cos(pi * Summit.Wind.Dir/180),
+
+    # aspect (if degrees)
+    Aspect_sin = sin(pi * Aspect/180),
+    Aspect_cos = cos(pi * Aspect/180)
+  )
+
+# remove the original variables:
+aval <- aval %>%
+  select(-Wind.Dir, -Summit.Wind.Dir, -Aspect)   # drop originals
+```
+
+
+
+```{r}
+# number of unique and missing values for each variable:
+n_total <- nrow(aval)
+
+var_summary <- aval %>%
+  summarise(across(
+    everything(),
+    list(
+      unique_vals  = ~n_distinct(.),
+      missing_vals = ~sum(is.na(.))
+    ),
+    .names = "{.col}__{.fn}"      # <-- double underscore here
+  )) %>%
+  pivot_longer(
+    everything(),
+    names_to   = c("variable", ".value"),
+    names_sep  = "__"             # <-- and the same separator here
+  ) %>%
+  mutate(pct_missing = round(100 * missing_vals / n_total, 2)) %>%
+  arrange(desc(pct_missing), variable)
+
+var_summary
+```
+
+```{r}
+# is long and lat constant within OSgrid?
+aval %>%
+  group_by(OSgrid) %>%
+  summarise(n_coords = n_distinct(paste(longitude, latitude)), .groups = "drop") %>%
+  filter(n_coords > 1)
+# yes, thus long and lat is the coordinates of different sites, OSgrid
+
+# is Alt the same within each OSgrid?
+aval %>%
+  group_by(OSgrid) %>%
+  summarise(n_alt = n_distinct(Alt), .groups = "drop") %>%
+  filter(n_alt > 1)
+## no: cannot use Osgrid to impute missing Alt
+```
+
+```{r}
+# Per-variable % missing
+miss_summary <- aval %>%
+  summarise(across(
+    everything(),
+    ~mean(is.na(.)) * 100
+  )) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "pct_missing") %>%
+  arrange(desc(pct_missing))
+
+miss_summary
+
+# Visual overview
+naniar::gg_miss_var(aval)
+naniar::vis_miss(aval)
+```
+
+From the above, only 10 variables have more than 5% of their values missing. Careful attention is paid to these below. The remaining variables have $<5\%$ missing values and will simply be imputed with a K-Nearest Neighbor approach.
+
+Of the variables missing more than 5%, we first need to determine if the missingness carries meaning. The list of variables is thus split in two, one where missingness does carry meaning and need to be accounted for and one where it does not.
+
+The variables that do need to be accounted for and the method to account for it are:
+\begin{itemize}
+  \item \texttt{AV.Cat} (23.4\%): add indicator \texttt{av\_cat\_missing}, since absence of an avalanche category is itself informative.
+  \item \texttt{Ski.Pen} (22.5\%): add indicator \texttt{ski\_pen\_missing}, as ski penetration is only measured when conditions permit.
+  \item \texttt{Crystals} (9.3\%): add indicator \texttt{crystals\_missing}, because snow-pit observations are selectively performed.
+  \item \texttt{Wetness} (5.4\%): add indicator \texttt{wetness\_missing}, as wetness is often unrecorded when snow is dry.
+  \item \texttt{Snow.Index} (7.0\%): add indicator \texttt{snow\_index\_missing}, since missing derived stability metrics indicate tests were not performed.
+\end{itemize}
+
+Those that do not need to be accounted for are:
+\begin{itemize}
+  \item \texttt{Summit.Wind.Dir\_sin / Summit.Wind.Dir\_cos} (12.4\%): not needed, as these NAs directly reflect missing \texttt{Summit.Wind.Dir}.
+  \item \texttt{Summit.Wind.Speed} (8.5\%): treat with KNN imputation; gaps likely due to instrumentation, not hazard-related.
+  \item \texttt{Summit.Air.Temp} (7.1\%): impute with KNN; missingness assumed random (sensor issues).
+  \item \texttt{Max.Temp.Grad} (6.7\%): impute with KNN; missing pit-test values largely overlap with other indicators.
+  \item \texttt{Max.Hardness.Grad} (5.9\%): impute with KNN; same reasoning as for Max.Temp.Grad.
+\end{itemize}
+
+These variables will also be imputed with KNN.
+
+
+```{r}
+unique(aval$AV.Cat)
+unique(aval$Ski.Pen)
+```
+
+
+todo
+- check for duplicates after imputing missing values. (noticed there are less unique dates than there are # obs)
