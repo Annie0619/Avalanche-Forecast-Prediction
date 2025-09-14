@@ -13,7 +13,7 @@ library(tidymodels); library(forcats)
 
 # Investigate missing data
 
-```{r}
+```{r echo=F}
 # quick checks
 colnames(aval)
 colSums(is.na(aval)) # number of missing values in each column
@@ -23,7 +23,7 @@ str(aval) # data type of each column
 aval <- aval %>% select(-OAH)
 ```
 
-```{r}
+```{r echo=F}
 # clean the data by casting variables as correct types
 # STEP 1 — Fix types & engineer helper features (with OAH removed)
 
@@ -72,14 +72,12 @@ aval <- aval %>%
     Aspect_cos = cos(pi * Aspect/180)
   )
 
-# remove the original variables:
-aval <- aval %>%
-  select(-Wind.Dir, -Summit.Wind.Dir, -Aspect)   # drop originals
+
 ```
 
 
 
-```{r}
+```{r echo=F}
 # number of unique and missing values for each variable:
 n_total <- nrow(aval)
 
@@ -103,7 +101,7 @@ var_summary <- aval %>%
 var_summary
 ```
 
-```{r}
+```{r echo=F}
 # is long and lat constant within OSgrid?
 aval %>%
   group_by(OSgrid) %>%
@@ -119,7 +117,7 @@ aval %>%
 ## no: cannot use Osgrid to impute missing Alt
 ```
 
-```{r}
+```{r echo=F}
 # Per-variable % missing
 miss_summary <- aval %>%
   summarise(across(
@@ -140,25 +138,41 @@ From the above, only 10 variables have more than 5% of their values missing. Car
 
 Of the variables missing more than 5%, we first need to determine if the missingness carries meaning. The list of variables is thus split in two, one where missingness does carry meaning and need to be accounted for and one where it does not.
 
-The variables that do need to be accounted for and the method to account for it are:
-\begin{itemize}
-  \item \texttt{AV.Cat} (23.4\%): add indicator \texttt{av\_cat\_missing}, since absence of an avalanche category is itself informative.
-  \item \texttt{Ski.Pen} (22.5\%): add indicator \texttt{ski\_pen\_missing}, as ski penetration is only measured when conditions permit.
-  \item \texttt{Crystals} (9.3\%): add indicator \texttt{crystals\_missing}, because snow-pit observations are selectively performed.
-  \item \texttt{Wetness} (5.4\%): add indicator \texttt{wetness\_missing}, as wetness is often unrecorded when snow is dry.
-  \item \texttt{Snow.Index} (7.0\%): add indicator \texttt{snow\_index\_missing}, since missing derived stability metrics indicate tests were not performed.
-\end{itemize}
+The variables that do need to be accounted for are:
+- **`AV.Cat` (23.4%)**: Missing avalanche category values likely mean that no category was assigned for that day. Forecasters usually provide a category when avalanches are observed or when conditions are clear enough to classify. If it is missing, that could itself indicate that avalanches were not observed or that conditions were uncertain, which is meaningful information about overall stability.  
 
-Those that do not need to be accounted for are:
-\begin{itemize}
-  \item \texttt{Summit.Wind.Dir\_sin / Summit.Wind.Dir\_cos} (12.4\%): not needed, as these NAs directly reflect missing \texttt{Summit.Wind.Dir}.
-  \item \texttt{Summit.Wind.Speed} (8.5\%): treat with KNN imputation; gaps likely due to instrumentation, not hazard-related.
-  \item \texttt{Summit.Air.Temp} (7.1\%): impute with KNN; missingness assumed random (sensor issues).
-  \item \texttt{Max.Temp.Grad} (6.7\%): impute with KNN; missing pit-test values largely overlap with other indicators.
-  \item \texttt{Max.Hardness.Grad} (5.9\%): impute with KNN; same reasoning as for Max.Temp.Grad.
-\end{itemize}
+- **`Ski.Pen` (22.5%)**: Ski penetration is only recorded when conditions allow observers to ski on the slope. If this field is missing, it often means the snow was too hard, too shallow, or otherwise unsuitable for skiing. This absence therefore reflects snow surface properties that can be related to avalanche hazard.  
 
-These variables will also be imputed with KNN.
+- **`Crystals` (9.3%)**: Crystal type is identified through snow-pit observations. Missing values here often mean that no pit was dug on that day, which in turn may depend on perceived stability, time constraints, or safety concerns. Thus, the lack of a crystal observation can itself provide information about conditions.  
+
+- **`Wetness` (5.4%)**: Wetness is typically noted when meltwater or damp snow is present. If this field is missing, it may indicate that the snow was dry and that observers did not see a reason to record wetness. Hence, missingness can indirectly point to dry-snow conditions.  
+
+- **`Snow.Index` (7.0%)**: This is a derived stability metric based on snowpack tests. If the value is missing, it likely means the relevant tests were not carried out, perhaps because conditions didn’t warrant them. This absence can therefore reflect judgments about snow stability.  
+
+- **`Summit.Wind.Dir_sin / Summit.Wind.Dir_cos` (12.4%), `Summit.Wind.Speed` (8.5%), and `Summit.Air.Temp` (7.1%)**: Missing summit weather variables may not just be sensor errors. It is plausible that readings were unavailable because weather at the summit was too extreme or dangerous for measurement, such as during storms or blizzards. In that case, missingness itself could be linked to hazardous conditions.  
+
+For each of these, an indicator will be created to show if the value was missing.
+
+Those variables that do not need explicit missingness indicators are:
+
+- **`Max.Temp.Grad` (6.7%)**: This variable reflects temperature gradients measured in snow-pit tests. When missing, it is usually because the snow-pit test was not performed. However, the decision not to perform a pit is already captured by other variables where missingness is more clearly informative (e.g. `Crystals`, `Snow.Index`). Adding another indicator here would add redundancy without extra insight. The values themselves will be imputed with KNN.  
+
+- **`Max.Hardness.Grad` (5.9%)**: Like `Max.Temp.Grad`, hardness gradients are only measured in pits. Missing values again overlap with the same “pit not performed” scenario already captured by other indicators. For this reason, a separate indicator is unnecessary. The variable will be imputed with KNN to fill the missing numeric values.  
+
+```{r}
+# add the indicator variables
+aval <- aval %>%
+  mutate(
+    av_cat_missing            = as.integer(is.na(AV.Cat)),
+    ski_pen_missing           = as.integer(is.na(Ski.Pen)),
+    crystals_missing          = as.integer(is.na(Crystals)),
+    wetness_missing           = as.integer(is.na(Wetness)),
+    snow_index_missing        = as.integer(is.na(Snow.Index)),
+    summit_wind_dir_missing   = as.integer(is.na(Summit.Wind.Dir)),
+    summit_wind_speed_missing = as.integer(is.na(Summit.Wind.Speed)),
+    summit_air_temp_missing   = as.integer(is.na(Summit.Air.Temp))
+  )
+```
 
 
 ```{r}
@@ -169,3 +183,10 @@ unique(aval$Ski.Pen)
 
 todo
 - check for duplicates after imputing missing values. (noticed there are less unique dates than there are # obs)
+
+```{r}
+# remove the original variables:
+aval <- aval %>%
+  select(-Wind.Dir, -Summit.Wind.Dir, -Aspect)   # drop originals
+```
+
