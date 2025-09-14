@@ -159,7 +159,7 @@ Those variables that do not need explicit missingness indicators are:
 
 - **`Max.Hardness.Grad` (5.9%)**: Like `Max.Temp.Grad`, hardness gradients are only measured in pits. Missing values again overlap with the same “pit not performed” scenario already captured by other indicators. For this reason, a separate indicator is unnecessary. The variable will be imputed with KNN to fill the missing numeric values.  
 
-```{r}
+```{r echo = F}
 # add the indicator variables
 aval <- aval %>%
   mutate(
@@ -175,7 +175,7 @@ aval <- aval %>%
 ```
 
 
-```{r}
+```{r echo = F}
 unique(aval$AV.Cat)
 unique(aval$Ski.Pen)
 ```
@@ -184,7 +184,7 @@ unique(aval$Ski.Pen)
 todo
 - check for duplicates after imputing missing values. (noticed there are less unique dates than there are # obs)
 
-```{r}
+```{r echo=F}
 # remove the original variables:
 aval <- aval %>%
   select(-Wind.Dir, -Summit.Wind.Dir, -Aspect)   # drop originals
