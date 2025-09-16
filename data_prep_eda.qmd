@@ -3,33 +3,28 @@ title: "Data Preparation and EDA"
 ---
 
 ```{r echo=F, message = F, warning = F}
-# read in the data
-aval <- read.csv("scotland_avalanche_forecasts_2009_2025.csv")
-
 set.seed(5073)
 library(tidyverse)
 library(lubridate)
 library(naniar)
 library(janitor)
 library(tidymodels)
-library(forcats)
 library(rpart)
 library(recipes)
 library(httr2)
 library(jsonlite)
-library(dplyr)
-library(purrr)
-library(tibble)
-library(stringr)
+
+# read in the data
+aval <- read.csv("scotland_avalanche_forecasts_2009_2025.csv")
 ```
 
 
 
 ```{r echo=F}
 # quick checks
-colnames(aval)
-colSums(is.na(aval)) # number of missing values in each column
-str(aval) # data type of each column
+#colnames(aval)
+#colSums(is.na(aval)) # number of missing values in each column
+#str(aval) # data type of each column
 
 # remove OAH: observed avalanche hazard
 aval <- aval %>% select(-OAH)
@@ -69,6 +64,8 @@ aval <- aval %>%
     OSgrid   = as.character(OSgrid),
     Location = as.character(Location),
     Obs      = factor(Obs),
+    Drift = factor(Drift),
+    Rain.at.900 = factor(Rain.at.900),
 
     # --- hazard (target) as ordered factor ---
     FAH_ord  = factor(
@@ -76,24 +73,9 @@ aval <- aval %>%
       # specify the following order:
       levels  = c("Low","Moderate","Considerable -","Considerable","Considerable +","High"),
       ordered = TRUE
-    ),
-
-    # --- circular encodings for angles ---
-    # since 0 degrees is equivalent to 360, we change these variables.
-    # ex. 350 is close to 0 directionally, but numerically far
-    # map angles onto unit circle
-    Wind.Dir_sin        = sin(pi * Wind.Dir/180),
-    Wind.Dir_cos        = cos(pi * Wind.Dir/180),
-    Summit.Wind.Dir_sin = sin(pi * Summit.Wind.Dir/180),
-    Summit.Wind.Dir_cos = cos(pi * Summit.Wind.Dir/180),
-
-    # aspect (if degrees)
-    Aspect_sin = sin(pi * Aspect/180),
-    Aspect_cos = cos(pi * Aspect/180)
+    )
   )
 ```
-
-# Investigate missing data
 
 Some specific questions regarding the data:
 1. Is longitude and latitude constant within OSgrid?
@@ -115,34 +97,97 @@ aval %>%
 ## no: cannot use Osgrid to impute missing Alt
 ```
 
-## Other missingness
 
-Start by getting a feel for what variables have missing values and how many. 
-```{r echo=F}
-# number of unique and missing values for each variable:
-n_total <- nrow(aval)
+# Investigate duplicates
 
-var_summary <- aval %>%
-  summarise(across(
-    everything(),
-    list(
-      unique_vals  = ~n_distinct(.),
-      missing_vals = ~sum(is.na(.))
-    ),
-    .names = "{.col}__{.fn}"      # <-- double underscore here
-  )) %>%
-  pivot_longer(
-    everything(),
-    names_to   = c("variable", ".value"),
-    names_sep  = "__"             # <-- and the same separator here
-  ) %>%
-  mutate(pct_missing = round(100 * missing_vals / n_total, 2)) %>%
-  arrange(desc(pct_missing), variable)
+```{r}
+aval %>% 
+  add_count(Date, OSgrid, name="dup_n") %>% 
+  filter(dup_n > 1)
 
-var_summary
+# Flag duplicates
+aval %>%
+  mutate(is_dup = duplicated(.) | duplicated(., fromLast = TRUE)) %>%
+  filter(is_dup)
+
+sum(duplicated(aval))
+
+
 ```
 
-## Distribution of continuous variables
+
+# Investigate missing data
+
+## Visualise missingness
+Determine the percentage missing values per variable and visualise this.
+
+```{r echo=F}
+# Per-variable % missing
+miss_summary <- aval %>%
+  summarise(across(
+    everything(),
+    ~mean(is.na(.)) * 100
+  )) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "pct_missing") %>%
+  arrange(desc(pct_missing))
+
+miss_summary
+
+# Visual overview
+naniar::gg_miss_var(aval)
+naniar::vis_miss(aval)
+```
+
+## Strategy for missing values
+
+From the above, only 10 variables have more than 5% of their values missing. Careful attention is paid to these below. The remaining variables have $<5\%$ missing values and will simply be imputed with a Bagged-tree imputation approach.
+
+Of the variables missing more than 5%, we first need to determine if the missingness carries meaning. The list of variables is thus split in two, one where missingness does carry meaning and need to be accounted for and one where it does not.
+
+The variables that do need to be accounted for are:
+- **`AV.Cat` (23.4%)**: Missing avalanche category values likely mean that no category was assigned for that day. Forecasters usually provide a category when avalanches are observed or when conditions are clear enough to classify. If it is missing, that could itself indicate that avalanches were not observed or that conditions were uncertain, which is meaningful information about overall stability.  
+
+- **`Ski.Pen` (22.5%)**: Ski penetration is only recorded when conditions allow observers to ski on the slope. If this field is missing, it often means the snow was too hard, too shallow, or otherwise unsuitable for skiing. This absence therefore reflects snow surface properties that can be related to avalanche hazard.  
+
+- **`Crystals` (9.3%)**: Crystal type is identified through snow-pit observations. Missing values here often mean that no pit was dug on that day, which in turn may depend on perceived stability, time constraints, or safety concerns. Thus, the lack of a crystal observation can itself provide information about conditions.  
+
+- **`Wetness` (5.4%)**: Wetness is typically noted when meltwater or damp snow is present. If this field is missing, it may indicate that the snow was dry and that observers did not see a reason to record wetness. Hence, missingness can indirectly point to dry-snow conditions.  
+
+- **`Snow.Index` (7.0%)**: This is a derived stability metric based on snowpack tests. If the value is missing, it likely means the relevant tests were not carried out, perhaps because conditions didn’t warrant them. This absence can therefore reflect judgments about snow stability.  
+
+- **`Summit.Wind.Dir_sin / Summit.Wind.Dir_cos` (12.4%), `Summit.Wind.Speed` (8.5%), and `Summit.Air.Temp` (7.1%)**: Missing summit weather variables may not just be sensor errors. It is plausible that readings were unavailable because weather at the summit was too extreme or dangerous for measurement, such as during storms or blizzards. In that case, missingness itself could be linked to hazardous conditions.  
+
+For each of these, an indicator will be created to show if the value was missing.
+
+Those variables that do not need explicit missingness indicators are:
+
+- **`Max.Temp.Grad` (6.7%)**: This variable reflects temperature gradients measured in snow-pit tests. When missing, it is usually because the snow-pit test was not performed. However, the decision not to perform a pit is already captured by other variables where missingness is more clearly informative (e.g. `Crystals`, `Snow.Index`). Adding another indicator here would add redundancy without extra insight. The values themselves will be imputed with KNN.  
+
+- **`Max.Hardness.Grad` (5.9%)**: Like `Max.Temp.Grad`, hardness gradients are only measured in pits. Missing values again overlap with the same “pit not performed” scenario already captured by other indicators. For this reason, a separate indicator is unnecessary. The variable will be imputed with KNN to fill the missing numeric values.  
+
+After the relevant indicators are created, all remaining missing values will be imputed with **Bagged tree imputation**. Bagged tree imputation is a machine-learning approach where missing values in a variable are predicted using an ensemble of decision trees fit on the observed cases. Each tree is trained on a bootstrap sample of the data, and predictions are averaged across trees to produce stable and robust imputations. Unlike simple mean/median imputation or KNN, bagged trees can capture non-linear relationships and interactions among predictors, making them well suited to complex, structured data. 
+
+In the avalanche dataset, where variables combine topography, weather, and snowpack characteristics, and missingness can depend on multiple interacting factors, bagged tree imputation offers a principled way to exploit those dependencies while limiting noise from any single predictor. This allows us to fill gaps more realistically while preserving the multivariate structure that is important for downstream modeling with neural networks.
+
+
+```{r echo = F}
+# --- (A) Ensure target exists & indicators (0/1) are present ---
+aval <- aval %>%
+  mutate(
+    av_cat_missing            = as.factor(is.na(AV.Cat)),
+    ski_pen_missing           = as.factor(is.na(Ski.Pen)),
+    crystals_missing          = as.factor(is.na(Crystals)),
+    wetness_missing           = as.factor(is.na(Wetness)),
+    snow_index_missing        = as.factor(is.na(Snow.Index)),
+    summit_wind_dir_missing   = as.factor(is.na(Summit.Wind.Dir)),
+    summit_wind_speed_missing = as.factor(is.na(Summit.Wind.Speed)),
+    summit_air_temp_missing   = as.factor(is.na(Summit.Air.Temp))
+  )
+```
+
+The imputation will be done at a later stage. At first, the data still needs to be cleaned. Note that these missing values were intentionally set now before looking at improbable or outlier values below that are then encoded as NA. The reason for this is to truly only capture "meaningful" missingness in these indicators and not convolute them with missingness due to incorrect values being entered.
+
+# Cleaning of continuous variables
 
 ```{r}
 nums <- names(dplyr::select(aval, where(is.numeric)))
@@ -164,65 +209,250 @@ cont_summary <- tibble(variable = nums) %>%
   arrange(desc(pct_missing), variable)
 
 cont_summary
-
-hist(aval$Summit.Wind.Dir) # clear outliers/ noise
-hist(aval$Alt) # clear outliers/ noise
-hist(aval$Wind.Speed) # very skewed.. possible noise?
-
 ```
+
+### Resonable variables
+The following variables seemed reasonable in terms of outliers or impossible values:
+1. AV.Cat
+2. Crystals
+3. Summit.Air.Temp
+4. Max.Hardness.Grad
+5. Air Temperature
+6. Summit.Wind.Speed (assume wind speeds are in km/h)
+7. Wind.Speed (assume wind speeds are in km/h)
+
+The remaining numerical variables were all cleaned.
+
+
+### Ski Penetration
+
+```{r}
+hist(aval$Ski.Pen)
+length(which(aval$Ski.Pen<0))
+
+# remove all values <0:
+aval$Ski.Pen[aval$Ski.Pen<0] <- NA_real_
+```
+
+### Snow Index
+Snow.Index is a derived stability score based on field observations such as penetration tests, hardness gradients, and crystal type. 
+
+Initial suspicion: At first glance, the distribution of Snow.Index raised concerns because the vast majority of observations (over 7,700 of 10,671) had a value of zero, with only 57 unique values overall. Given the large number of missing entries in related snowpit variables, this pattern suggested that a zero might be functioning as a placeholder for “no measurement taken,” rather than a genuine stability score.
+
+```{r}
+# unique(aval$Snow.Index)
+# length(unique(aval$Snow.Index)) #57
+hist(aval$Snow.Index, breaks = 30)
+
+# length(which(aval$Snow.Index>100)) # 28
+# length(which(aval$Snow.Index>50)) # 35
+# length(which(aval$Snow.Index<0)) # 70
+# length(which(aval$Snow.Index>0 & aval$Snow.Index<20)) # 2021
+# length(which(aval$Snow.Index==0)) # 7770 actually equals 0
+```
+
+Let's try to confirm this suspicion by doing some checks. The following table looks at the distribution of values for other variables whre Snow.Index is zero.
+
+```{r}
+# Which rows have Snow.Index == 0 ?
+idx_zero <- aval$Snow.Index == 0
+
+# Compare % missing in other key variables for zero vs non-zero Snow.Index
+aval %>%
+  mutate(group = case_when(
+    Snow.Index == 0 ~ "Zero",
+    is.na(Snow.Index) ~ "NA",
+    TRUE ~ "Non-zero"
+  )) %>%
+  summarise(
+    across(c(Ski.Pen, Foot.Pen, Crystals, Wetness, Max.Temp.Grad, Max.Hardness.Grad),
+           ~ mean(is.na(.)), 
+           .names = "{.col}_missing_rate"),
+    n = n(),
+    .by = group
+  )
+```
+
+Further inspection: However, when the missingness patterns were examined, rows with a Snow.Index of zero showed very low missingness in other snowpit variables (typically less than 10%). This indicates that these zeros are not simply standing in for absent measurements. Instead, they appear to represent true observations where no instability was detected. On this basis, zeros were retained as valid values, and only genuine missing entries (NA) were flagged for imputation.
+
+
+
+
+### Wetness
+
+```{r}
+hist(aval$Wetness)
+unique(aval$Wetness) # looks more like an index, keep as is.
+# length(which(aval$Wetness>9))
+```
+
+### Insolation
+Insolation measures the incoming solar radiation at the observation site, here recorded on a coded scale ranging mostly from 0–20. This index reflects sunlight exposure, which plays an important role in snowpack warming and wet-snow avalanche activity. A small number of observations fall outside the expected range, including negative values and extreme outliers above 20 (e.g., -55, 106, 208). Since these are not physically meaningful, they were treated as data entry errors and recoded as missing for later imputation.
+
+```{r}
+hist(aval$Insolation)
+unique(aval$Insolation)
+table(aval$Insolation)
+
+# encode <0 and >20 as NA
+aval$Insolation[which(aval$Insolation<0 |
+                        aval$Insolation>20)] <- NA_real_
+```
+
+### Snow Temperature
+
+Snow.Temp records the snowpack temperature in degrees Celsius. Values in this dataset range from -13 to 124 °C. Since snow cannot persist above 0 °C, values above 5 °C were considered physically implausible and were recoded as missing for later imputation. Negative values down to -13 °C were retained as realistic cold-snow conditions.
+
+```{r}
+hist(aval$Snow.Temp)
+sort(unique(aval$Snow.Temp))
+length(which(aval$Snow.Temp>5)) # 176
+length(which(aval$Snow.Temp<10)) # 10127
+
+# make all values above 5 NA
+aval$Snow.Temp[which(aval$Snow.Temp>5)] <- NA_real_
+```
+
+### Aspect
+
+Aspect describes the compass direction of the slope, measured in degrees clockwise from north (0–360°). It influences how much solar radiation a slope receives and therefore affects snow metamorphism and avalanche risk. In the dataset, any values outside the valid range of 0–360° were considered invalid and recoded as missing for later imputation.
+
+```{r}
+hist(aval$Aspect)
+length(which(aval$Aspect>360)) # only 8- make these NA
+length(which(aval$Aspect<0)) # only 4- make these NA
+
+# make values >360 and <0 NA:
+aval$Aspect[which(aval$Aspect<0 |
+                    aval$Aspect>360)] <- NA_real_
+
+# also fix the corresponding sin and cos Aspects:
+# Recalculate sine and cosine encodings after cleaning Aspect
+aval <- aval %>%
+  mutate(
+    Aspect_sin = if_else(is.na(Aspect), NA_real_, sin(pi * Aspect / 180)),
+    Aspect_cos = if_else(is.na(Aspect), NA_real_, cos(pi * Aspect / 180))
+  )
+```
+
+### No.Settle
+
+```{r}
+hist(aval$No.Settle) # looks fine
+```
+
+
+
+
+### Total Snow Depth
+Total Snow depth represents the measured thickness of the snowpack in centimeters. Most values lie between 0–500 cm, which is consistent with expected conditions in the observation areas. Negative values are not physically possible, while a small number of extreme outliers above 500 cm were judged unrealistic for the region. These implausible entries were recoded as missing for later imputation.
+
+```{r}
+hist(aval$Total.Snow.Depth)
+length(which(aval$Total.Snow.Depth>500)) # only 14
+length(which(aval$Total.Snow.Depth<0)) # only 38
+
+aval$Total.Snow.Depth[which(aval$Total.Snow.Depth>500|
+                              aval$Total.Snow.Depth<0)] <- NA_real_
+```
+
+
+### Wind Direction and Summit Wind Direction
+Wind direction values less than 0° or greater than 360° are not physically possible. Since the source of these errors is unknown, they were treated as missing (NA) rather than corrected by assumption. These missing values will later be imputed using bagged-tree models, with a corresponding missingness indicator retained to capture any systematic patterns in measurement failure.
+
+```{r}
+hist(aval$Summit.Wind.Dir) # clear outliers/ noise
+hist(aval$Wind.Dir) # clear outliers/ noise
+# length(which(aval$Summit.Wind.Dir>360)) # 4
+# length(which(aval$Summit.Wind.Dir<0)) # 191
+# length(which(aval$Wind.Dir>360)) # 1
+# length(which(aval$Wind.Dir<0)) # 13
+
+# assign NA to these and the cos and sin versions:
+# 1) Identify invalid entries (out of [0, 360])
+idx_wind_invalid   <- !is.na(aval$Wind.Dir)        & (aval$Wind.Dir < 0 | aval$Wind.Dir > 360)
+idx_summit_invalid <- !is.na(aval$Summit.Wind.Dir) & (aval$Summit.Wind.Dir < 0 | aval$Summit.Wind.Dir > 360)
+# sum(idx_wind_invalid) # 14
+# sum(idx_summit_invalid) # 195
+
+# 2) Set invalid directions to NA
+aval$Wind.Dir[idx_wind_invalid]               <- NA_real_
+aval$Summit.Wind.Dir[idx_summit_invalid]      <- NA_real_
+```
+
+
+### Foot Penetration
+Foot penetration measures the depth in centimeters that an observer’s boot sinks into the snow surface. It reflects snow hardness and helps assess surface stability. Typical values range from a few centimeters in firm snow to over a meter in very soft conditions. In the dataset, negative values and extreme entries above 100 cm were judged implausible and recoded as missing for later imputation.
+
+```{r}
+hist(aval$Foot.Pen)
+length(which(aval$Foot.Pen>100)) # only 3
+length(which(aval$Foot.Pen<0)) # only 4
+
+aval$Foot.Pen[which(aval$Foot.Pen<0|
+                      aval$Foot.Pen>100)] <- NA_real_
+```
+
+### Incline
+Incline represents the slope angle at the observation site, recorded in degrees. Since slope angle is central to avalanche release, accurate measurement is critical. Values should range from 0° (flat) to 90° (vertical). In the dataset, negative values and outliers above 90° were considered invalid and recoded as missing for later imputation.
+
+```{r}
+hist(aval$Incline)
+length(which(aval$Incline>90)) # only 4
+length(which(aval$Incline<0)) # only 3
+
+aval$Incline[which(aval$Incline<0|
+                     aval$Incline>90)] <- NA_real_
+```
+
+### Cloud
+
+Cloud represents the observed cloud cover, recorded as a percentage from 0 (clear sky) to 100 (fully overcast). This variable provides important context for snowpack conditions, since cloud cover influences surface cooling, radiation balance, and melting. In the dataset, most values fell within the expected 0–100% range. A small number of impossible values (e.g., -1) were considered data entry errors and recoded as missing for later imputation.
+
+```{r}
+hist(aval$Cloud)
+length(which(aval$Cloud > 100)) # only 1
+length(which(aval$Cloud < 0))   # only 3
+
+aval$Cloud[which(aval$Cloud < 0 |
+                   aval$Cloud > 100)] <- NA_real_
+```
+
+
 ### Maximum temperature grading
-In avalanche datasets, Max.Temp.Grad = Maximum Temperature Gradient within the snowpack profile.
+In avalanche datasets, Max.Temp.Grad = Maximum Temperature Gradient within the snowpack profile.When snow profiles are dug, forecasters often measure snow temperature at different depths (surface, mid-pack, base). They then compute the temperature gradient (°C per 10 cm) between layers. The maximum gradient across all measured layers is recorded as Max.Temp.Grad.
 
-When snow profiles are dug, forecasters often measure snow temperature at different depths (surface, mid-pack, base). They then compute the temperature gradient (°C per 10 cm) between layers. The maximum gradient across all measured layers is recorded as Max.Temp.Grad.
-
-In this dataset, the mean and median Maximum Temperature Gradient is 1.2 and 0.2, respectively.
-
-In general, we would expect values between 0-5 to be very common, 5-10 to be less common, but plausible and values of greater than 10 to be very rare.  
+In general, we would expect values between 0-5 to be very common, 5-10 to be less common, but plausible and values of greater than 10 to be very rare.  Any value greater than 10 was assumed to be an error and was replaced with an NA value.
 
 ```{r}
 hist(aval$Max.Temp.Grad) # clear outliers/ noise, a value of 130 is physically impossible
-# length(which(aval$Max.Temp.Grad>10))
-```
-The histogram of Maximum Temperature Gradient values reveals a highly skewed distribution. Most values fall within the expected physical range (0–10 °C per 10 cm), but a small number of observations exceed this threshold, reaching values as high as 40–130. Such magnitudes are physically unrealistic for snow temperature gradients and likely result from a unit mismatch, where the values were recorded as °C per meter rather than per 10 cm. To correct for this, we assume that all values above 10 were mis-scaled and divide them by 10.
+length(which(aval$Max.Temp.Grad>10)) # 160 
 
-Further, if a value remains above 20 °C per 10 cm even after applying the unit correction (division by 10), it is deemed physically implausible. Such cases are likely due to measurement or data-entry errors and will be replaced with NA for later imputation. This ensures that only realistic temperature gradient values are retained for analysis and modeling.
+aval$Max.Temp.Grad[which(aval$Max.Temp.Grad>10)] <- NA_real_
+```
+
+
+### Altitude
+
+Altitude values greater than 1400 m or less than 0 m are physically impossible within the Scottish study area (highest peak 1345 m). These were treated as missing for later imputation.
 
 ```{r}
-# 1) Divide values > 10 by 10 (unit correction), skipping NAs
-idx <- !is.na(aval$Max.Temp.Grad) & aval$Max.Temp.Grad > 10
-aval$Max.Temp.Grad[idx] <- aval$Max.Temp.Grad[idx] / 10
+hist(aval$Alt[aval$Alt<2000])
+# length(which(aval$Alt>10000)) # only 2
 
-# 2) Any values still > 20 are implausible → set to NA
-idx2 <- !is.na(aval$Max.Temp.Grad) & aval$Max.Temp.Grad > 10
-aval$Max.Temp.Grad[idx2] <- NA_real_
+aval$Alt[aval$Alt < 0 | aval$Alt > 1400] <- NA_real_
 ```
 
-
-## Altitude (Alt)
-6 Observations are missing Altitude. It was noticed that longitude and latitude is constant within OSgrid, i.e. that each value for OSgrid had a unique longitude and latitude associated with it. However, each longitude and latitude did not have a unique altitude associated with it.
-
-Thus, it is assumed that the OSgrip represents a whole area grid of unknown size, whereas the longitude and latitude is some point within that grid.
-
-It was further noticed that there are extreme values within Alt.
 
 ```{r}
-# is altitude relatively stable within OSgrid?
-alt_summary <- aval %>%
-  group_by(OSgrid) %>%
-  summarise(
-    n_obs = n(),
-    n_missing = sum(is.na(Alt)),
-    mean_alt = mean(Alt, na.rm = TRUE),
-    sd_alt   = sd(Alt, na.rm = TRUE)
-  ) %>%
-  arrange(desc(sd_alt))
-
-head(alt_summary, 20)  # show the top 20 with biggest variation
-hist(alt_summary$sd_alt)
-
+# sum(is.na(aval$Alt)) # now 9 are missing
 ```
 
-The missing altitudes all come from different grids. An investigation of the mean and standard deviation of altitude within OSgrid
+After replacing impossible values with NA, 9 observations had missing Altitude. Longitude and latitude were found to be constant within each OSgrid, i.e. each OSgrid corresponds to a unique coordinate pair. However, altitude was not unique within these coordinates, suggesting that the OSgrid represents an area grid of unknown size, while the longitude and latitude are specific sampling points within that grid.
+
+To impute missing Altitude values, an open-source elevation API will be queried at the recorded longitude and latitude of each observation. This approach assumes that altitude variation within the grid is limited, and that the elevation at the given coordinates is representative for the corresponding observation. 
+
+When doing this, it was noticed that one of the altitudes was zero. Upon further investigation, the point was found to be in Loch Fyne (Sea Loch), and was thus assumed to be an erroroneous longitude and latitude.
 
 ```{r}
 # --- 1) Helper: call Open-Elevation for a batch of lat/lon points ---
@@ -287,7 +517,65 @@ to_fill <- aval %>%
 
 elev_tbl <- oe_lookup(to_fill, batch_size = 80, sleep_secs = 1)
 
-hist(aval$Alt)
+# --- 4) Join back and fill Alt where missing ---
+# 1) Build a lookup key on the API results (rounded to match request precision)
+elev_lu <- elev_tbl %>%
+  mutate(key = paste0(round(latitude, 6), "_", round(longitude, 6))) %>%
+  select(key, elev_m)
+# one of the values is zero altitude: this is in the ocean (see map)
+
+# Coordinates whose elevation came back as exactly 0
+zero_pts <- elev_lu %>%
+  filter(!is.na(elev_m), elev_m == 0) %>%
+  transmute(x = round(longitude, 6), y = round(latitude, 6)) %>%
+  distinct()
+```
+
+Replace this longitude and latitude with the average longitude and latitude in the area.
+
+```{r}
+# fixing the incorrect long and lat value
+aval %>%
+  filter(round(longitude, 6) == zero_pts$x,
+         round(latitude, 6) == zero_pts$y)
+
+# it's the only observation in this grid
+aval %>% 
+  filter(OSgrid == "NN077044")
+
+# average long and lat in the area:
+mean_coord <- aval %>%
+  filter(Area == "Creag Meagaidh") %>%
+  summarise(
+    mean_lon = mean(longitude, na.rm = TRUE),
+    mean_lat = mean(latitude, na.rm = TRUE)
+  )
+
+# known bad coordinates (round to avoid float mismatch)
+bad_lon <- round(as.numeric(zero_pts$x), 6)
+bad_lat <- round(as.numeric(zero_pts$y), 6)
+
+# replacement mean values
+mean_lon <- mean_coord$mean_lon
+mean_lat <- mean_coord$mean_lat
+
+# replace in aval
+aval <- aval %>%
+  mutate(
+    longitude = if_else(round(longitude, 6) == bad_lon & round(latitude, 6) == bad_lat,
+                        mean_lon, longitude),
+    latitude  = if_else(round(longitude, 6) == bad_lon & round(latitude, 6) == bad_lat,
+                        mean_lat, latitude)
+  )
+```
+
+
+```{r}
+to_fill <- aval %>%
+  filter(is.na(Alt)) %>%
+  transmute(latitude = latitude, longitude = longitude)
+
+elev_tbl <- oe_lookup(to_fill, batch_size = 80, sleep_secs = 1)
 
 # --- 4) Join back and fill Alt where missing ---
 # 1) Build a lookup key on the API results (rounded to match request precision)
@@ -311,78 +599,26 @@ cat("Alt missing before fill:", sum(is.na(aval$Alt)) + sum(fill_idx == TRUE), "\
 cat("Alt missing after fill :", sum(is.na(aval$Alt)), "\n")
 ```
 
+# Encode angles as circular
 
-
-
-
-# Investigate missing values
-
-## Visualise missingness
-Determine the percentage missing values per variable and visualise this.
-
-```{r echo=F}
-# Per-variable % missing
-miss_summary <- aval %>%
-  summarise(across(
-    everything(),
-    ~mean(is.na(.)) * 100
-  )) %>%
-  pivot_longer(everything(), names_to = "variable", values_to = "pct_missing") %>%
-  arrange(desc(pct_missing))
-
-miss_summary
-
-# Visual overview
-naniar::gg_miss_var(aval)
-naniar::vis_miss(aval)
-```
-
-## Strategy for missing values
-
-From the above, only 10 variables have more than 5% of their values missing. Careful attention is paid to these below. The remaining variables have $<5\%$ missing values and will simply be imputed with a Bagged-tree imputation approach.
-
-Of the variables missing more than 5%, we first need to determine if the missingness carries meaning. The list of variables is thus split in two, one where missingness does carry meaning and need to be accounted for and one where it does not.
-
-The variables that do need to be accounted for are:
-- **`AV.Cat` (23.4%)**: Missing avalanche category values likely mean that no category was assigned for that day. Forecasters usually provide a category when avalanches are observed or when conditions are clear enough to classify. If it is missing, that could itself indicate that avalanches were not observed or that conditions were uncertain, which is meaningful information about overall stability.  
-
-- **`Ski.Pen` (22.5%)**: Ski penetration is only recorded when conditions allow observers to ski on the slope. If this field is missing, it often means the snow was too hard, too shallow, or otherwise unsuitable for skiing. This absence therefore reflects snow surface properties that can be related to avalanche hazard.  
-
-- **`Crystals` (9.3%)**: Crystal type is identified through snow-pit observations. Missing values here often mean that no pit was dug on that day, which in turn may depend on perceived stability, time constraints, or safety concerns. Thus, the lack of a crystal observation can itself provide information about conditions.  
-
-- **`Wetness` (5.4%)**: Wetness is typically noted when meltwater or damp snow is present. If this field is missing, it may indicate that the snow was dry and that observers did not see a reason to record wetness. Hence, missingness can indirectly point to dry-snow conditions.  
-
-- **`Snow.Index` (7.0%)**: This is a derived stability metric based on snowpack tests. If the value is missing, it likely means the relevant tests were not carried out, perhaps because conditions didn’t warrant them. This absence can therefore reflect judgments about snow stability.  
-
-- **`Summit.Wind.Dir_sin / Summit.Wind.Dir_cos` (12.4%), `Summit.Wind.Speed` (8.5%), and `Summit.Air.Temp` (7.1%)**: Missing summit weather variables may not just be sensor errors. It is plausible that readings were unavailable because weather at the summit was too extreme or dangerous for measurement, such as during storms or blizzards. In that case, missingness itself could be linked to hazardous conditions.  
-
-For each of these, an indicator will be created to show if the value was missing.
-
-Those variables that do not need explicit missingness indicators are:
-
-- **`Max.Temp.Grad` (6.7%)**: This variable reflects temperature gradients measured in snow-pit tests. When missing, it is usually because the snow-pit test was not performed. However, the decision not to perform a pit is already captured by other variables where missingness is more clearly informative (e.g. `Crystals`, `Snow.Index`). Adding another indicator here would add redundancy without extra insight. The values themselves will be imputed with KNN.  
-
-- **`Max.Hardness.Grad` (5.9%)**: Like `Max.Temp.Grad`, hardness gradients are only measured in pits. Missing values again overlap with the same “pit not performed” scenario already captured by other indicators. For this reason, a separate indicator is unnecessary. The variable will be imputed with KNN to fill the missing numeric values.  
-
-After the relevant indicators are created, all remaining missing values will be imputed with **Bagged tree imputation**. Bagged tree imputation is a machine-learning approach where missing values in a variable are predicted using an ensemble of decision trees fit on the observed cases. Each tree is trained on a bootstrap sample of the data, and predictions are averaged across trees to produce stable and robust imputations. Unlike simple mean/median imputation or KNN, bagged trees can capture non-linear relationships and interactions among predictors, making them well suited to complex, structured data. 
-
-In the avalanche dataset, where variables combine topography, weather, and snowpack characteristics, and missingness can depend on multiple interacting factors, bagged tree imputation offers a principled way to exploit those dependencies while limiting noise from any single predictor. This allows us to fill gaps more realistically while preserving the multivariate structure that is important for downstream modeling with neural networks.
-
-
-```{r echo = F}
-# --- (A) Ensure target exists & indicators (0/1) are present ---
+```{r}
+# After finishing all angle cleaning:
 aval <- aval %>%
   mutate(
-    av_cat_missing            = as.integer(is.na(AV.Cat)),
-    ski_pen_missing           = as.integer(is.na(Ski.Pen)),
-    crystals_missing          = as.integer(is.na(Crystals)),
-    wetness_missing           = as.integer(is.na(Wetness)),
-    snow_index_missing        = as.integer(is.na(Snow.Index)),
-    summit_wind_dir_missing   = as.integer(is.na(Summit.Wind.Dir)),
-    summit_wind_speed_missing = as.integer(is.na(Summit.Wind.Speed)),
-    summit_air_temp_missing   = as.integer(is.na(Summit.Air.Temp))
+    Wind.Dir_sin        = if_else(is.na(Wind.Dir), NA_real_, sin(pi * Wind.Dir/180)),
+    Wind.Dir_cos        = if_else(is.na(Wind.Dir), NA_real_, cos(pi * Wind.Dir/180)),
+    Summit.Wind.Dir_sin = if_else(is.na(Summit.Wind.Dir), NA_real_, sin(pi * Summit.Wind.Dir/180)),
+    Summit.Wind.Dir_cos = if_else(is.na(Summit.Wind.Dir), NA_real_, cos(pi * Summit.Wind.Dir/180)),
+    Aspect_sin          = if_else(is.na(Aspect), NA_real_, sin(pi * Aspect/180)),
+    Aspect_cos          = if_else(is.na(Aspect), NA_real_, cos(pi * Aspect/180))
   )
 ```
+
+
+
+
+
+# Imputing missing values
 
 ```{r}
 set.seed(123)
@@ -426,14 +662,9 @@ sapply(select(train_ready, -FAH_ord), \(x) sum(is.na(x))) %>% sum()
 
 # Indicators remain 0/1 and were not normalized?
 summary(select(train_ready, ends_with("_missing")))
-
 ```
 
 
-```{r echo = F}
-unique(aval$AV.Cat)
-unique(aval$Ski.Pen)
-```
 
 
 todo
