@@ -101,18 +101,101 @@ aval %>%
 # Investigate duplicates
 
 ```{r}
-aval %>% 
-  add_count(Date, OSgrid, name="dup_n") %>% 
-  filter(dup_n > 1)
-
-# Flag duplicates
+# should we add area, i.e. do multiple areas exist per (Date, OSgrid)
 aval %>%
-  mutate(is_dup = duplicated(.) | duplicated(., fromLast = TRUE)) %>%
-  filter(is_dup)
+  count(Date, OSgrid, Area) %>%
+  count(Date, OSgrid) %>%
+  filter(n > 1)  # there are some, so add area.
 
-sum(duplicated(aval))
+aval %>% 
+  add_count(Date, OSgrid, Area, name="dup_n") %>% 
+  filter(dup_n > 1)
+```
+
+The above values seem to be duplicates, although some rows are almost exactly the same, except for some having an NA, whereas another row has a value. Begin by investigating the conflicts:
+
+```{r}
+# define the keys that identify duplicates
+key_cols <- c("Date", "OSgrid", "Area")
+
+aval_collapsed <- aval %>%
+  group_by(across(all_of(key_cols))) %>%
+  summarise(across(everything(), ~ first(na.omit(.x)), .names = "{.col}"),
+            .groups = "drop")
 
 
+key_cols <- c("Date", "OSgrid", "Area")
+
+# check numeric columns for consistency
+numeric_conflicts <- aval %>%
+  group_by(across(all_of(key_cols))) %>%
+  summarise(
+    across(where(is.numeric),
+           ~ n_distinct(na.omit(.x)), 
+           .names = "{.col}_nunique"),
+    .groups = "drop"
+  ) %>%
+  # flag only the groups where at least one numeric column has >1 distinct value
+  filter(if_any(ends_with("_nunique"), ~ .x > 1))
+
+numeric_conflicts # there are some that have distinct values in the numeric variables
+```
+
+Some of these rows don't just differ by NA, but have conflicting numeric values. For these, keep both records, but for those that only differ by an NA, collapse the rows to keep the most numeric values per column.
+
+```{r}
+# --- define your keys
+key_cols <- c("Date", "OSgrid", "Area")
+
+# sanity: which keys are missing?
+missing_keys <- setdiff(key_cols, names(aval))
+if (length(missing_keys)) {
+  stop("These key columns are not in `aval`: ", paste(missing_keys, collapse = ", "))
+}
+
+# build list of NON-key columns explicitly
+non_key_cols <- setdiff(names(aval), key_cols)
+
+# helper: first non-NA while preserving type
+first_non_na <- function(x) {
+  nx <- x[!is.na(x)]
+  if (length(nx) == 0) x[NA_integer_] else nx[1]
+}
+
+# 1) identify groups with numeric conflicts
+numeric_conflicts <- aval %>%
+  group_by(across(all_of(key_cols))) %>%
+  summarise(
+    across(where(is.numeric), ~ n_distinct(na.omit(.x)), .names = "{.col}_nuniq"),
+    .groups = "drop"
+  ) %>%
+  filter(if_any(ends_with("_nuniq"), ~ .x > 1)) %>%
+  select(all_of(key_cols)) %>%
+  distinct()
+
+# 2) collapse only groups with NO numeric conflicts
+collapsed_ok <- aval %>%
+  anti_join(numeric_conflicts, by = key_cols) %>%
+  group_by(across(all_of(key_cols))) %>%
+  summarise(
+    across(all_of(non_key_cols), first_non_na),
+    .rows_collapsed = dplyr::n(),
+    .collapsed = TRUE,
+    .groups = "drop"
+  )
+
+# 3) keep conflicting groups as-is (flag them)
+kept_conflicts <- aval %>%
+  semi_join(numeric_conflicts, by = key_cols) %>%
+  mutate(.collapsed = FALSE)
+
+# 4) combine
+aval_dups_resolved <- bind_rows(collapsed_ok, kept_conflicts) %>%
+  arrange(across(all_of(key_cols)))
+
+# 5) make this aval
+aval <- aval_dups_resolved %>%
+  select(-.collapsed, -.rows_collapsed)
 ```
 
 
@@ -525,7 +608,7 @@ elev_lu <- elev_tbl %>%
 # one of the values is zero altitude: this is in the ocean (see map)
 
 # Coordinates whose elevation came back as exactly 0
-zero_pts <- elev_lu %>%
+zero_pts <- elev_tbl %>%
   filter(!is.na(elev_m), elev_m == 0) %>%
   transmute(x = round(longitude, 6), y = round(latitude, 6)) %>%
   distinct()
@@ -613,10 +696,6 @@ aval <- aval %>%
     Aspect_cos          = if_else(is.na(Aspect), NA_real_, cos(pi * Aspect/180))
   )
 ```
-
-
-
-
 
 # Imputing missing values
 
