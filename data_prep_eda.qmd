@@ -2,16 +2,28 @@
 title: "Data Preparation and EDA"
 ---
 
-```{r echo=F}
+```{r echo=F, message = F, warning = F}
 # read in the data
 aval <- read.csv("scotland_avalanche_forecasts_2009_2025.csv")
 
 set.seed(5073)
-library(tidyverse); library(lubridate); library(naniar); library(janitor)
-library(tidymodels); library(forcats)
+library(tidyverse)
+library(lubridate)
+library(naniar)
+library(janitor)
+library(tidymodels)
+library(forcats)
+library(rpart)
+library(recipes)
+library(httr2)
+library(jsonlite)
+library(dplyr)
+library(purrr)
+library(tibble)
+library(stringr)
 ```
 
-# Investigate missing data
+
 
 ```{r echo=F}
 # quick checks
@@ -22,6 +34,14 @@ str(aval) # data type of each column
 # remove OAH: observed avalanche hazard
 aval <- aval %>% select(-OAH)
 ```
+
+# Data preparation: variable types
+We begin by doing the following:
+1. Change the 'Date' variable to a Date class and extract the year, month and day of year (doy) as new variables.
+2. Create a new variable called 'Season' that groups the months together into seasons
+3. Ensure text variables are character classes and that indicators are factors
+4. Create a new variable for the response called FAH_ord, that casts FAH as a factor and assigns the different values to ordered levels
+5. Convert all the wind direction and aspect variables to their sine and cosine versions so that degrees that are far apart numerically but close together geographically would be close together numerically as well (ex. 0 degrees and 350 degrees).
 
 ```{r echo=F}
 # clean the data by casting variables as correct types
@@ -71,12 +91,33 @@ aval <- aval %>%
     Aspect_sin = sin(pi * Aspect/180),
     Aspect_cos = cos(pi * Aspect/180)
   )
-
-
 ```
 
+# Investigate missing data
 
+Some specific questions regarding the data:
+1. Is longitude and latitude constant within OSgrid?
+2. Is Alt constant within OSgrid?
 
+```{r echo=F}
+# is long and lat constant within OSgrid?
+aval %>%
+  group_by(OSgrid) %>%
+  summarise(n_coords = n_distinct(paste(longitude, latitude)), .groups = "drop") %>%
+  filter(n_coords > 1)
+# yes, thus long and lat is the coordinates of different sites, OSgrid
+
+# is Alt the same within each OSgrid?
+aval %>%
+  group_by(OSgrid) %>%
+  summarise(n_alt = n_distinct(Alt), .groups = "drop") %>%
+  filter(n_alt > 1)
+## no: cannot use Osgrid to impute missing Alt
+```
+
+## Other missingness
+
+Start by getting a feel for what variables have missing values and how many. 
 ```{r echo=F}
 # number of unique and missing values for each variable:
 n_total <- nrow(aval)
@@ -101,21 +142,183 @@ var_summary <- aval %>%
 var_summary
 ```
 
-```{r echo=F}
-# is long and lat constant within OSgrid?
-aval %>%
-  group_by(OSgrid) %>%
-  summarise(n_coords = n_distinct(paste(longitude, latitude)), .groups = "drop") %>%
-  filter(n_coords > 1)
-# yes, thus long and lat is the coordinates of different sites, OSgrid
+## Distribution of continuous variables
 
-# is Alt the same within each OSgrid?
-aval %>%
-  group_by(OSgrid) %>%
-  summarise(n_alt = n_distinct(Alt), .groups = "drop") %>%
-  filter(n_alt > 1)
-## no: cannot use Osgrid to impute missing Alt
+```{r}
+nums <- names(dplyr::select(aval, where(is.numeric)))
+n_tot <- nrow(aval)
+
+cont_summary <- tibble(variable = nums) %>%
+  rowwise() %>%
+  mutate(
+    n_nonmiss   = sum(!is.na(aval[[variable]])),
+    n_missing   = n_tot - n_nonmiss,
+    pct_missing = round(100 * n_missing / n_tot, 2),
+    mean   = if (n_nonmiss > 0) mean(aval[[variable]], na.rm = TRUE)   else NA_real_,
+    median = if (n_nonmiss > 0) median(aval[[variable]], na.rm = TRUE) else NA_real_,
+    min    = if (n_nonmiss > 0) min(aval[[variable]], na.rm = TRUE)    else NA_real_,
+    max    = if (n_nonmiss > 0) max(aval[[variable]], na.rm = TRUE)    else NA_real_,
+    sd     = if (n_nonmiss > 1) sd(aval[[variable]],  na.rm = TRUE)    else NA_real_
+  ) %>%
+  ungroup() %>%
+  arrange(desc(pct_missing), variable)
+
+cont_summary
+
+hist(aval$Summit.Wind.Dir) # clear outliers/ noise
+hist(aval$Alt) # clear outliers/ noise
+hist(aval$Wind.Speed) # very skewed.. possible noise?
+
 ```
+### Maximum temperature grading
+In avalanche datasets, Max.Temp.Grad = Maximum Temperature Gradient within the snowpack profile.
+
+When snow profiles are dug, forecasters often measure snow temperature at different depths (surface, mid-pack, base). They then compute the temperature gradient (°C per 10 cm) between layers. The maximum gradient across all measured layers is recorded as Max.Temp.Grad.
+
+In this dataset, the mean and median Maximum Temperature Gradient is 1.2 and 0.2, respectively.
+
+In general, we would expect values between 0-5 to be very common, 5-10 to be less common, but plausible and values of greater than 10 to be very rare.  
+
+```{r}
+hist(aval$Max.Temp.Grad) # clear outliers/ noise, a value of 130 is physically impossible
+# length(which(aval$Max.Temp.Grad>10))
+```
+The histogram of Maximum Temperature Gradient values reveals a highly skewed distribution. Most values fall within the expected physical range (0–10 °C per 10 cm), but a small number of observations exceed this threshold, reaching values as high as 40–130. Such magnitudes are physically unrealistic for snow temperature gradients and likely result from a unit mismatch, where the values were recorded as °C per meter rather than per 10 cm. To correct for this, we assume that all values above 10 were mis-scaled and divide them by 10.
+
+Further, if a value remains above 20 °C per 10 cm even after applying the unit correction (division by 10), it is deemed physically implausible. Such cases are likely due to measurement or data-entry errors and will be replaced with NA for later imputation. This ensures that only realistic temperature gradient values are retained for analysis and modeling.
+
+```{r}
+# 1) Divide values > 10 by 10 (unit correction), skipping NAs
+idx <- !is.na(aval$Max.Temp.Grad) & aval$Max.Temp.Grad > 10
+aval$Max.Temp.Grad[idx] <- aval$Max.Temp.Grad[idx] / 10
+
+# 2) Any values still > 20 are implausible → set to NA
+idx2 <- !is.na(aval$Max.Temp.Grad) & aval$Max.Temp.Grad > 10
+aval$Max.Temp.Grad[idx2] <- NA_real_
+```
+
+
+## Altitude (Alt)
+6 Observations are missing Altitude. It was noticed that longitude and latitude is constant within OSgrid, i.e. that each value for OSgrid had a unique longitude and latitude associated with it. However, each longitude and latitude did not have a unique altitude associated with it.
+
+Thus, it is assumed that the OSgrip represents a whole area grid of unknown size, whereas the longitude and latitude is some point within that grid.
+
+It was further noticed that there are extreme values within Alt.
+
+```{r}
+# is altitude relatively stable within OSgrid?
+alt_summary <- aval %>%
+  group_by(OSgrid) %>%
+  summarise(
+    n_obs = n(),
+    n_missing = sum(is.na(Alt)),
+    mean_alt = mean(Alt, na.rm = TRUE),
+    sd_alt   = sd(Alt, na.rm = TRUE)
+  ) %>%
+  arrange(desc(sd_alt))
+
+head(alt_summary, 20)  # show the top 20 with biggest variation
+hist(alt_summary$sd_alt)
+
+```
+
+The missing altitudes all come from different grids. An investigation of the mean and standard deviation of altitude within OSgrid
+
+```{r}
+# --- 1) Helper: call Open-Elevation for a batch of lat/lon points ---
+# Expects a tibble/data.frame with columns: latitude, longitude
+# Returns: tibble(latitude, longitude, elev_m)
+oe_lookup_batch <- function(points_df) {
+  if (nrow(points_df) == 0) return(tibble(latitude = numeric(), longitude = numeric(), elev_m = numeric()))
+  # Build "lat,lon|lat,lon|..." string
+  locs <- points_df %>%
+    transmute(pair = sprintf("%.6f,%.6f", latitude, longitude)) %>%
+    pull(pair) %>%
+    paste(collapse = "|")
+
+  url <- paste0("https://api.open-elevation.com/api/v1/lookup?locations=", URLencode(locs))
+
+  resp <- request(url) |> req_timeout(30) |> req_perform()
+
+  if (resp_status(resp) != 200) {
+    warning("Open-Elevation request failed with status: ", resp_status(resp))
+    return(tibble(latitude = numeric(), longitude = numeric(), elev_m = numeric()))
+  }
+
+  dat <- resp_body_json(resp, simplifyVector = TRUE)
+  res <- as_tibble(dat$results)
+  # API returns 'elevation' (meters), 'latitude', 'longitude'
+  res %>%
+    transmute(
+      latitude  = as.numeric(latitude),
+      longitude = as.numeric(longitude),
+      elev_m    = as.numeric(elevation)
+    )
+}
+
+# --- 2) Wrapper: batch over many points, with simple rate limiting & safety ---
+oe_lookup <- function(points_df, batch_size = 80, sleep_secs = 1) {
+  # round coords to reduce accidental duplicates/float precision issues
+  pts <- points_df %>%
+    transmute(
+      latitude  = round(as.numeric(latitude), 6),
+      longitude = round(as.numeric(longitude), 6)
+    ) %>%
+    distinct()
+
+  batches <- split(pts, ceiling(seq_len(nrow(pts)) / batch_size))
+
+  safe_batch <- safely(oe_lookup_batch, otherwise = tibble(latitude=numeric(), longitude=numeric(), elev_m=numeric()))
+  results <- map(batches, function(b) {
+    out <- safe_batch(b)
+    Sys.sleep(sleep_secs)
+    if (!is.null(out$error)) warning("Batch failed: ", out$error)
+    out$result
+  })
+
+  bind_rows(results)
+}
+
+# --- 3) Apply to your data: only rows with missing Alt ---
+# Assumes your data frame is named `aval` and has columns Alt, latitude, longitude
+to_fill <- aval %>%
+  filter(is.na(Alt)) %>%
+  transmute(latitude = latitude, longitude = longitude)
+
+elev_tbl <- oe_lookup(to_fill, batch_size = 80, sleep_secs = 1)
+
+hist(aval$Alt)
+
+# --- 4) Join back and fill Alt where missing ---
+# 1) Build a lookup key on the API results (rounded to match request precision)
+elev_lu <- elev_tbl %>%
+  mutate(key = paste0(round(latitude, 6), "_", round(longitude, 6))) %>%
+  select(key, elev_m)
+
+# 2) Build the same key for your aval rows
+aval_key <- paste0(round(aval$latitude, 6), "_", round(aval$longitude, 6))
+
+# 3) Match each aval row to the API elevation
+match_idx <- match(aval_key, elev_lu$key)
+alt_from_api <- elev_lu$elev_m[match_idx]   # will be NA where no API result
+
+# 4) Replace Alt in place ONLY where it's missing and we have a lookup value
+fill_idx <- is.na(aval$Alt) & !is.na(alt_from_api)
+aval$Alt[fill_idx] <- alt_from_api[fill_idx]
+
+# 5) Quick check
+cat("Alt missing before fill:", sum(is.na(aval$Alt)) + sum(fill_idx == TRUE), "\n")
+cat("Alt missing after fill :", sum(is.na(aval$Alt)), "\n")
+```
+
+
+
+
+
+# Investigate missing values
+
+## Visualise missingness
+Determine the percentage missing values per variable and visualise this.
 
 ```{r echo=F}
 # Per-variable % missing
@@ -134,7 +337,9 @@ naniar::gg_miss_var(aval)
 naniar::vis_miss(aval)
 ```
 
-From the above, only 10 variables have more than 5% of their values missing. Careful attention is paid to these below. The remaining variables have $<5\%$ missing values and will simply be imputed with a K-Nearest Neighbor approach.
+## Strategy for missing values
+
+From the above, only 10 variables have more than 5% of their values missing. Careful attention is paid to these below. The remaining variables have $<5\%$ missing values and will simply be imputed with a Bagged-tree imputation approach.
 
 Of the variables missing more than 5%, we first need to determine if the missingness carries meaning. The list of variables is thus split in two, one where missingness does carry meaning and need to be accounted for and one where it does not.
 
@@ -159,8 +364,13 @@ Those variables that do not need explicit missingness indicators are:
 
 - **`Max.Hardness.Grad` (5.9%)**: Like `Max.Temp.Grad`, hardness gradients are only measured in pits. Missing values again overlap with the same “pit not performed” scenario already captured by other indicators. For this reason, a separate indicator is unnecessary. The variable will be imputed with KNN to fill the missing numeric values.  
 
+After the relevant indicators are created, all remaining missing values will be imputed with **Bagged tree imputation**. Bagged tree imputation is a machine-learning approach where missing values in a variable are predicted using an ensemble of decision trees fit on the observed cases. Each tree is trained on a bootstrap sample of the data, and predictions are averaged across trees to produce stable and robust imputations. Unlike simple mean/median imputation or KNN, bagged trees can capture non-linear relationships and interactions among predictors, making them well suited to complex, structured data. 
+
+In the avalanche dataset, where variables combine topography, weather, and snowpack characteristics, and missingness can depend on multiple interacting factors, bagged tree imputation offers a principled way to exploit those dependencies while limiting noise from any single predictor. This allows us to fill gaps more realistically while preserving the multivariate structure that is important for downstream modeling with neural networks.
+
+
 ```{r echo = F}
-# add the indicator variables
+# --- (A) Ensure target exists & indicators (0/1) are present ---
 aval <- aval %>%
   mutate(
     av_cat_missing            = as.integer(is.na(AV.Cat)),
@@ -172,6 +382,51 @@ aval <- aval %>%
     summit_wind_speed_missing = as.integer(is.na(Summit.Wind.Speed)),
     summit_air_temp_missing   = as.integer(is.na(Summit.Air.Temp))
   )
+```
+
+```{r}
+set.seed(123)
+
+# --- (B) Time-aware split (no leakage) ---
+aval <- aval %>% arrange(Date) # ensure dataset is sorted chronologically
+split  <- initial_time_split(aval, prop = 0.8)  # last ~20% becomes test by time and the first 80% become the training set
+train  <- training(split)
+test   <- testing(split)
+
+# --- (C) Bagged-tree imputation recipe ---
+rec_bagged <- recipe(FAH_ord ~ ., data = train) %>%
+  # Drop pure IDs / text fields from predictors (won't be used by the model)
+  update_role(any_of(c("DateTime","OSgrid","Location","site_id")), new_role = "id") %>%
+  step_rm(any_of(c("DateTime","OSgrid","Location","site_id"))) %>%
+
+  # remove these because we transformed them:
+  step_rm(any_of(c("Wind.Dir","Summit.Wind.Dir","Aspect"))) %>%
+
+  # Bagged trees for numeric predictors (exclude the 0/1 missing flags)
+  step_impute_bag(all_numeric_predictors(), -matches("_missing$")) %>%
+
+  # Mode imputation for categorical predictors (factors/character)
+  step_impute_mode(all_nominal_predictors()) %>%
+
+  # Normalize numeric predictors for NN stability, but NOT the 0/1 flags
+  step_normalize(all_numeric_predictors(), -matches("_missing$")) %>%
+
+  # Remove zero-variance columns that can appear after imputation/normalization
+  step_zv(all_predictors())
+
+# --- (D) Prep on TRAIN only; bake TRAIN/TEST ---
+prep_bagged <- prep(rec_bagged, training = train, retain = TRUE)
+
+train_ready <- bake(prep_bagged, new_data = NULL)  # training set baked
+test_ready  <- bake(prep_bagged, new_data = test)  # test set baked
+
+# --- (E) Quick checks ---
+# No NA's left in predictors?
+sapply(select(train_ready, -FAH_ord), \(x) sum(is.na(x))) %>% sum()
+
+# Indicators remain 0/1 and were not normalized?
+summary(select(train_ready, ends_with("_missing")))
+
 ```
 
 
