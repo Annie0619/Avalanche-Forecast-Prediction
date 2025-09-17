@@ -179,7 +179,35 @@ window.Quarto = {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#investigate-missing-data" id="toc-investigate-missing-data" class="nav-link active" data-scroll-target="#investigate-missing-data">Investigate missing data</a></li>
+  <li><a href="#data-preparation-variable-types" id="toc-data-preparation-variable-types" class="nav-link active" data-scroll-target="#data-preparation-variable-types">Data preparation: variable types</a></li>
+  <li><a href="#investigate-duplicates" id="toc-investigate-duplicates" class="nav-link" data-scroll-target="#investigate-duplicates">Investigate duplicates</a></li>
+  <li><a href="#investigate-missing-data" id="toc-investigate-missing-data" class="nav-link" data-scroll-target="#investigate-missing-data">Investigate missing data</a>
+  <ul class="collapse">
+  <li><a href="#visualise-missingness" id="toc-visualise-missingness" class="nav-link" data-scroll-target="#visualise-missingness">Visualise missingness</a></li>
+  <li><a href="#strategy-for-missing-values" id="toc-strategy-for-missing-values" class="nav-link" data-scroll-target="#strategy-for-missing-values">Strategy for missing values</a></li>
+  </ul></li>
+  <li><a href="#cleaning-of-continuous-variables" id="toc-cleaning-of-continuous-variables" class="nav-link" data-scroll-target="#cleaning-of-continuous-variables">Cleaning of continuous variables</a>
+  <ul class="collapse">
+  <li><a href="#resonable-variables" id="toc-resonable-variables" class="nav-link" data-scroll-target="#resonable-variables">Resonable variables</a></li>
+  <li><a href="#ski-penetration" id="toc-ski-penetration" class="nav-link" data-scroll-target="#ski-penetration">Ski Penetration</a></li>
+  <li><a href="#snow-index" id="toc-snow-index" class="nav-link" data-scroll-target="#snow-index">Snow Index</a></li>
+  <li><a href="#wetness" id="toc-wetness" class="nav-link" data-scroll-target="#wetness">Wetness</a></li>
+  <li><a href="#insolation" id="toc-insolation" class="nav-link" data-scroll-target="#insolation">Insolation</a></li>
+  <li><a href="#snow-temperature" id="toc-snow-temperature" class="nav-link" data-scroll-target="#snow-temperature">Snow Temperature</a></li>
+  <li><a href="#aspect" id="toc-aspect" class="nav-link" data-scroll-target="#aspect">Aspect</a></li>
+  <li><a href="#no.settle" id="toc-no.settle" class="nav-link" data-scroll-target="#no.settle">No.Settle</a></li>
+  <li><a href="#total-snow-depth" id="toc-total-snow-depth" class="nav-link" data-scroll-target="#total-snow-depth">Total Snow Depth</a></li>
+  <li><a href="#wind-direction-and-summit-wind-direction" id="toc-wind-direction-and-summit-wind-direction" class="nav-link" data-scroll-target="#wind-direction-and-summit-wind-direction">Wind Direction and Summit Wind Direction</a></li>
+  <li><a href="#foot-penetration" id="toc-foot-penetration" class="nav-link" data-scroll-target="#foot-penetration">Foot Penetration</a></li>
+  <li><a href="#incline" id="toc-incline" class="nav-link" data-scroll-target="#incline">Incline</a></li>
+  <li><a href="#cloud" id="toc-cloud" class="nav-link" data-scroll-target="#cloud">Cloud</a></li>
+  <li><a href="#maximum-temperature-grading" id="toc-maximum-temperature-grading" class="nav-link" data-scroll-target="#maximum-temperature-grading">Maximum temperature grading</a></li>
+  <li><a href="#altitude" id="toc-altitude" class="nav-link" data-scroll-target="#altitude">Altitude</a></li>
+  </ul></li>
+  <li><a href="#encode-angles-as-circular" id="toc-encode-angles-as-circular" class="nav-link" data-scroll-target="#encode-angles-as-circular">Encode angles as circular</a></li>
+  <li><a href="#train--test--val-split" id="toc-train--test--val-split" class="nav-link" data-scroll-target="#train--test--val-split">Train- Test- Val split</a></li>
+  <li><a href="#pre-processing-data" id="toc-pre-processing-data" class="nav-link" data-scroll-target="#pre-processing-data">Pre-processing data</a></li>
+  <li><a href="#old-imputing-missing-values" id="toc-old-imputing-missing-values" class="nav-link" data-scroll-target="#old-imputing-missing-values">[OLD] Imputing missing values</a></li>
   </ul>
 </nav>
     </div>
@@ -205,235 +233,15 @@ window.Quarto = {
 </header>
 
 
+<section id="data-preparation-variable-types" class="level1">
+<h1>Data preparation: variable types</h1>
+<p>We begin by doing the following: 1. Change the ‘Date’ variable to a Date class and extract the year, month and day of year (doy) as new variables. 2. Create a new variable called ‘Season’ that groups the months together into seasons 3. Ensure text variables are character classes and that indicators are factors 4. Create a new variable for the response called FAH_ord, that casts FAH as a factor and assigns the different values to ordered levels 5. Convert all the wind direction and aspect variables to their sine and cosine versions so that degrees that are far apart numerically but close together geographically would be close together numerically as well (ex. 0 degrees and 350 degrees).</p>
+<p>Some specific questions regarding the data: 1. Is longitude and latitude constant within OSgrid? 2. Is Alt constant within OSgrid?</p>
 <div class="cell">
-<div class="cell-output cell-output-stderr">
-<pre><code>── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
-✔ dplyr     1.1.4     ✔ readr     2.1.5
-✔ forcats   1.0.0     ✔ stringr   1.5.1
-✔ ggplot2   3.5.1     ✔ tibble    3.2.1
-✔ lubridate 1.9.4     ✔ tidyr     1.3.1
-✔ purrr     1.0.4     
-── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
-✖ dplyr::filter() masks stats::filter()
-✖ dplyr::lag()    masks stats::lag()
-ℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors
-
-Attaching package: 'janitor'
-
-
-The following objects are masked from 'package:stats':
-
-    chisq.test, fisher.test
-
-
-── Attaching packages ────────────────────────────────────── tidymodels 1.3.0 ──
-
-✔ broom        1.0.7     ✔ rsample      1.2.1
-✔ dials        1.4.0     ✔ tune         1.3.0
-✔ infer        1.0.7     ✔ workflows    1.2.0
-✔ modeldata    1.4.0     ✔ workflowsets 1.1.0
-✔ parsnip      1.3.0     ✔ yardstick    1.3.2
-✔ recipes      1.1.1     
-
-── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
-✖ scales::discard() masks purrr::discard()
-✖ dplyr::filter()   masks stats::filter()
-✖ recipes::fixed()  masks stringr::fixed()
-✖ dplyr::lag()      masks stats::lag()
-✖ yardstick::spec() masks readr::spec()
-✖ recipes::step()   masks stats::step()</code></pre>
-</div>
-</div>
-<section id="investigate-missing-data" class="level1">
-<h1>Investigate missing data</h1>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># quick checks</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(aval)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code> [1] "Date"              "Area"              "OSgrid"           
- [4] "longitude"         "latitude"          "Alt"              
- [7] "Aspect"            "Incline"           "Location"         
-[10] "Obs"               "FAH"               "OAH"              
-[13] "Air.Temp"          "Wind.Dir"          "Wind.Speed"       
-[16] "Cloud"             "Precip.Code"       "Drift"            
-[19] "Total.Snow.Depth"  "Foot.Pen"          "Ski.Pen"          
-[22] "Rain.at.900"       "Summit.Air.Temp"   "Summit.Wind.Dir"  
-[25] "Summit.Wind.Speed" "Max.Temp.Grad"     "Max.Hardness.Grad"
-[28] "No.Settle"         "Snow.Index"        "Insolation"       
-[31] "Crystals"          "Wetness"           "AV.Cat"           
-[34] "Snow.Temp"        </code></pre>
-</div>
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">colSums</span>(<span class="fu">is.na</span>(aval)) <span class="co"># number of missing values in each column</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>             Date              Area            OSgrid         longitude 
-                0                 0                 0                 0 
-         latitude               Alt            Aspect           Incline 
-                0                 6               355                36 
-         Location               Obs               FAH               OAH 
-                0                 0                 0               369 
-         Air.Temp          Wind.Dir        Wind.Speed             Cloud 
-               34               158                53                29 
-      Precip.Code             Drift  Total.Snow.Depth          Foot.Pen 
-                0                 0               163                42 
-          Ski.Pen       Rain.at.900   Summit.Air.Temp   Summit.Wind.Dir 
-             2404                 0               754              1318 
-Summit.Wind.Speed     Max.Temp.Grad Max.Hardness.Grad         No.Settle 
-              909               710               629               289 
-       Snow.Index        Insolation          Crystals           Wetness 
-              745               507               988               576 
-           AV.Cat         Snow.Temp 
-             2494               410 </code></pre>
-</div>
-<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">str</span>(aval) <span class="co"># data type of each column</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>'data.frame':   10671 obs. of  34 variables:
- $ Date             : chr  "2009-12-17 12:30:00" "2009-12-18 13:15:00" "2009-12-19 13:15:00" "2009-12-20 12:50:00" ...
- $ Area             : chr  "Creag Meagaidh" "Creag Meagaidh" "Creag Meagaidh" "Creag Meagaidh" ...
- $ OSgrid           : chr  "NN460901" "NN442895" "NN448897" "NN463900" ...
- $ longitude        : num  -4.54 -4.56 -4.55 -4.53 -4.55 ...
- $ latitude         : num  57 57 57 57 57 ...
- $ Alt              : int  800 890 NA 890 900 730 700 800 600 600 ...
- $ Aspect           : int  160 100 NA 130 100 155 150 130 190 120 ...
- $ Incline          : int  28 32 NA 39 33 31 35 25 20 28 ...
- $ Location         : chr  "Cairn Liath" "Lifa Gully, Coire Chriochairein" "Wall gully,Coire Chreiochairein" "Balloon Gully" ...
- $ Obs              : chr  "WS" "TR" "TR" "TR" ...
- $ FAH              : chr  "Moderate" "Considerable -" "Considerable +" "Considerable +" ...
- $ OAH              : chr  "Moderate" "Considerable +" "High" "Considerable +" ...
- $ Air.Temp         : num  -3.2 -2.5 -5 -2 -2.6 -7.8 -0.5 -3 -1 -2 ...
- $ Wind.Dir         : num  45 340 NA 270 NA NA NA NA 45 45 ...
- $ Wind.Speed       : num  10 30 35 25 5 0 3 NA 5 2 ...
- $ Cloud            : int  90 100 100 60 90 0 100 10 2 20 ...
- $ Precip.Code      : chr  "2 - Trace" "4 - Light Showers" "8 - Snow" "6 - Snow Showers" ...
- $ Drift            : int  1 1 1 1 1 0 1 0 1 0 ...
- $ Total.Snow.Depth : int  45 40 65 75 80 64 60 52 41 42 ...
- $ Foot.Pen         : num  0 10 33 50 70 42 50 50 40 30 ...
- $ Ski.Pen          : int  NA NA NA NA 25 30 20 NA NA NA ...
- $ Rain.at.900      : int  0 0 0 0 0 0 0 0 0 0 ...
- $ Summit.Air.Temp  : num  NA NA NA NA NA NA NA NA NA NA ...
- $ Summit.Wind.Dir  : int  NA NA NA NA NA NA NA NA NA NA ...
- $ Summit.Wind.Speed: int  NA NA NA NA NA NA NA NA NA NA ...
- $ Max.Temp.Grad    : num  20 8 18 5 10 43 4 18 34 17 ...
- $ Max.Hardness.Grad: int  4 2 2 2 2 2 2 3 3 3 ...
- $ No.Settle        : int  NA NA NA NA NA NA NA NA NA NA ...
- $ Snow.Index       : int  NA NA NA NA NA NA NA NA NA NA ...
- $ Insolation       : int  NA NA NA NA NA NA NA NA NA NA ...
- $ Crystals         : int  NA NA NA NA NA NA NA NA NA NA ...
- $ Wetness          : int  NA NA NA NA NA NA NA NA NA NA ...
- $ AV.Cat           : int  NA NA NA NA NA NA NA NA NA NA ...
- $ Snow.Temp        : num  NA NA NA NA NA NA NA NA NA NA ...</code></pre>
-</div>
-<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># remove OAH: observed avalanche hazard</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>aval <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span> <span class="fu">select</span>(<span class="sc">-</span>OAH)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># clean the data by casting variables as correct types</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># STEP 1 — Fix types &amp; engineer helper features (with OAH removed)</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>aval <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># --- time features ---</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">DateTime =</span> <span class="fu">ymd_hms</span>(Date, <span class="at">quiet =</span> <span class="cn">TRUE</span>),</span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># strip out year, month and day:</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">Date     =</span> <span class="fu">as.Date</span>(DateTime),</span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">year     =</span> <span class="fu">year</span>(Date),</span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">month    =</span> <span class="fu">month</span>(Date),</span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">doy      =</span> <span class="fu">yday</span>(Date),</span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># create a new variable: season</span></span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">season   =</span> <span class="fu">factor</span>(<span class="fu">case_when</span>(</span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>      month <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">12</span>,<span class="dv">1</span>,<span class="dv">2</span>) <span class="sc">~</span> <span class="st">"DJF"</span>,</span>
-<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>      month <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">3</span>,<span class="dv">4</span>,<span class="dv">5</span>)  <span class="sc">~</span> <span class="st">"MAM"</span>,</span>
-<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>      month <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">6</span>,<span class="dv">7</span>,<span class="dv">8</span>)  <span class="sc">~</span> <span class="st">"JJA"</span>,</span>
-<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span>                 <span class="sc">~</span> <span class="st">"SON"</span></span>
-<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    ), <span class="at">levels =</span> <span class="fu">c</span>(<span class="st">"DJF"</span>,<span class="st">"MAM"</span>,<span class="st">"JJA"</span>,<span class="st">"SON"</span>)),</span>
-<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>    <span class="co"># --- categorical / IDs ---</span></span>
-<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    <span class="at">Area     =</span> <span class="fu">factor</span>(Area),</span>
-<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">OSgrid   =</span> <span class="fu">as.character</span>(OSgrid),</span>
-<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">Location =</span> <span class="fu">as.character</span>(Location),</span>
-<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">Obs      =</span> <span class="fu">factor</span>(Obs),</span>
-<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>    <span class="co"># --- hazard (target) as ordered factor ---</span></span>
-<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">FAH_ord  =</span> <span class="fu">factor</span>(</span>
-<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>      FAH,</span>
-<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>      <span class="co"># specify the following order:</span></span>
-<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>      <span class="at">levels  =</span> <span class="fu">c</span>(<span class="st">"Low"</span>,<span class="st">"Moderate"</span>,<span class="st">"Considerable -"</span>,<span class="st">"Considerable"</span>,<span class="st">"Considerable +"</span>,<span class="st">"High"</span>),</span>
-<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>      <span class="at">ordered =</span> <span class="cn">TRUE</span></span>
-<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>    <span class="co"># --- circular encodings for angles ---</span></span>
-<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>    <span class="co"># since 0 degrees is equivalent to 360, we change these variables.</span></span>
-<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>    <span class="co"># ex. 350 is close to 0 directionally, but numerically far</span></span>
-<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>    <span class="co"># map angles onto unit circle</span></span>
-<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>    <span class="at">Wind.Dir_sin        =</span> <span class="fu">sin</span>(pi <span class="sc">*</span> Wind.Dir<span class="sc">/</span><span class="dv">180</span>),</span>
-<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>    <span class="at">Wind.Dir_cos        =</span> <span class="fu">cos</span>(pi <span class="sc">*</span> Wind.Dir<span class="sc">/</span><span class="dv">180</span>),</span>
-<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a>    <span class="at">Summit.Wind.Dir_sin =</span> <span class="fu">sin</span>(pi <span class="sc">*</span> Summit.Wind.Dir<span class="sc">/</span><span class="dv">180</span>),</span>
-<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>    <span class="at">Summit.Wind.Dir_cos =</span> <span class="fu">cos</span>(pi <span class="sc">*</span> Summit.Wind.Dir<span class="sc">/</span><span class="dv">180</span>),</span>
-<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a>    <span class="co"># aspect (if degrees)</span></span>
-<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>    <span class="at">Aspect_sin =</span> <span class="fu">sin</span>(pi <span class="sc">*</span> Aspect<span class="sc">/</span><span class="dv">180</span>),</span>
-<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>    <span class="at">Aspect_cos =</span> <span class="fu">cos</span>(pi <span class="sc">*</span> Aspect<span class="sc">/</span><span class="dv">180</span>)</span>
-<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a><span class="co"># remove the original variables:</span></span>
-<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a>aval <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span></span>
-<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>Wind.Dir, <span class="sc">-</span>Summit.Wind.Dir, <span class="sc">-</span>Aspect)   <span class="co"># drop originals</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># number of unique and missing values for each variable:</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>n_total <span class="ot">&lt;-</span> <span class="fu">nrow</span>(aval)</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>var_summary <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span></span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="fu">across</span>(</span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">everything</span>(),</span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">list</span>(</span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>      <span class="at">unique_vals  =</span> <span class="sc">~</span><span class="fu">n_distinct</span>(.),</span>
-<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>      <span class="at">missing_vals =</span> <span class="sc">~</span><span class="fu">sum</span>(<span class="fu">is.na</span>(.))</span>
-<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">.names =</span> <span class="st">"{.col}__{.fn}"</span>      <span class="co"># &lt;-- double underscore here</span></span>
-<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>  )) <span class="sc">%&gt;%</span></span>
-<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_longer</span>(</span>
-<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">everything</span>(),</span>
-<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">names_to   =</span> <span class="fu">c</span>(<span class="st">"variable"</span>, <span class="st">".value"</span>),</span>
-<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">names_sep  =</span> <span class="st">"__"</span>             <span class="co"># &lt;-- and the same separator here</span></span>
-<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
-<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">pct_missing =</span> <span class="fu">round</span>(<span class="dv">100</span> <span class="sc">*</span> missing_vals <span class="sc">/</span> n_total, <span class="dv">2</span>)) <span class="sc">%&gt;%</span></span>
-<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(pct_missing), variable)</span>
-<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>var_summary</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code># A tibble: 42 × 4
-   variable            unique_vals missing_vals pct_missing
-   &lt;chr&gt;                     &lt;int&gt;        &lt;int&gt;       &lt;dbl&gt;
- 1 AV.Cat                       17         2494       23.4 
- 2 Ski.Pen                      29         2404       22.5 
- 3 Summit.Wind.Dir_cos         322         1318       12.4 
- 4 Summit.Wind.Dir_sin         323         1318       12.4 
- 5 Crystals                     10          988        9.26
- 6 Summit.Wind.Speed           144          909        8.52
- 7 Summit.Air.Temp             222          754        7.07
- 8 Snow.Index                   57          745        6.98
- 9 Max.Temp.Grad               110          710        6.65
-10 Max.Hardness.Grad             7          629        5.89
-# ℹ 32 more rows</code></pre>
-</div>
-</div>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># is long and lat constant within OSgrid?</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>aval <span class="sc">%&gt;%</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(OSgrid) <span class="sc">%&gt;%</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n_coords =</span> <span class="fu">n_distinct</span>(<span class="fu">paste</span>(longitude, latitude)), <span class="at">.groups =</span> <span class="st">"drop"</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(n_coords <span class="sc">&gt;</span> <span class="dv">1</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code># A tibble: 0 × 2
 # ℹ 2 variables: OSgrid &lt;chr&gt;, n_coords &lt;int&gt;</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># yes, thus long and lat is the coordinates of different sites, OSgrid</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="co"># is Alt the same within each OSgrid?</span></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>aval <span class="sc">%&gt;%</span></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(OSgrid) <span class="sc">%&gt;%</span></span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n_alt =</span> <span class="fu">n_distinct</span>(Alt), <span class="at">.groups =</span> <span class="st">"drop"</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(n_alt <span class="sc">&gt;</span> <span class="dv">1</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code># A tibble: 1,271 × 2
    OSgrid   n_alt
@@ -450,71 +258,1210 @@ Summit.Wind.Speed     Max.Temp.Grad Max.Hardness.Grad         No.Settle
 10 NG780424     2
 # ℹ 1,261 more rows</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="do">## no: cannot use Osgrid to impute missing Alt</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
+</section>
+<section id="investigate-duplicates" class="level1">
+<h1>Investigate duplicates</h1>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Per-variable % missing</span></span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>miss_summary <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span></span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="fu">across</span>(</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">everything</span>(),</span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    <span class="sc">~</span><span class="fu">mean</span>(<span class="fu">is.na</span>(.)) <span class="sc">*</span> <span class="dv">100</span></span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>  )) <span class="sc">%&gt;%</span></span>
-<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_longer</span>(<span class="fu">everything</span>(), <span class="at">names_to =</span> <span class="st">"variable"</span>, <span class="at">values_to =</span> <span class="st">"pct_missing"</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(pct_missing))</span>
-<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>miss_summary</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># should we add area, i.e. do multiple areas exist per (Date, OSgrid)</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>aval <span class="sc">%&gt;%</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(Date, OSgrid, Area) <span class="sc">%&gt;%</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(Date, OSgrid) <span class="sc">%&gt;%</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(n <span class="sc">&gt;</span> <span class="dv">1</span>)  <span class="co"># there are some, so add area.</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code># A tibble: 42 × 2
-   variable            pct_missing
-   &lt;chr&gt;                     &lt;dbl&gt;
- 1 AV.Cat                    23.4 
- 2 Ski.Pen                   22.5 
- 3 Summit.Wind.Dir_sin       12.4 
- 4 Summit.Wind.Dir_cos       12.4 
- 5 Crystals                   9.26
- 6 Summit.Wind.Speed          8.52
- 7 Summit.Air.Temp            7.07
- 8 Snow.Index                 6.98
- 9 Max.Temp.Grad              6.65
-10 Max.Hardness.Grad          5.89
-# ℹ 32 more rows</code></pre>
+<pre><code>        Date   OSgrid n
+1 2012-03-25 NN189742 2
+2 2012-03-26 NN189742 2
+3 2012-03-27 NN189742 2
+4 2012-03-28 NN189742 2</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Visual overview</span></span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>naniar<span class="sc">::</span><span class="fu">gg_miss_var</span>(aval)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>aval <span class="sc">%&gt;%</span> </span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">add_count</span>(Date, OSgrid, Area, <span class="at">name=</span><span class="st">"dup_n"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(dup_n <span class="sc">&gt;</span> <span class="dv">1</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>         Date                Area   OSgrid longitude latitude  Alt Aspect
+1  2012-03-07      Creag Meagaidh NN437859 -4.570550 56.93790  800    120
+2  2012-03-07      Creag Meagaidh NN437859 -4.570550 56.93790  800    120
+3  2019-01-22      Creag Meagaidh NN460883 -4.534252 56.96021  720     90
+4  2019-01-22      Creag Meagaidh NN460883 -4.534252 56.96021  750     90
+5  2022-04-06      Creag Meagaidh NN443895 -4.562918 56.97041  800    100
+6  2022-04-06      Creag Meagaidh NN443895 -4.562918 56.97041  800    199
+7  2016-02-01 Northern Cairngorms NH997043 -3.658041 57.11866  984     40
+8  2016-02-01 Northern Cairngorms NH997043 -3.658041 57.11866  984     40
+9  2016-02-01 Northern Cairngorms NH997043 -3.658041 57.11866  984     40
+10 2016-02-01 Northern Cairngorms NH997043 -3.658041 57.11866  984     40
+11 2016-03-01 Northern Cairngorms NJ003058 -3.648736 57.13226  910     40
+12 2016-03-01 Northern Cairngorms NJ003058 -3.648736 57.13226  910     40
+13 2017-02-14 Northern Cairngorms NJ002041 -3.649708 57.11697 1106    300
+14 2017-02-14 Northern Cairngorms NJ002041 -3.649708 57.11697 1106    300
+15 2018-12-25 Northern Cairngorms NJ001041 -3.651359 57.11695 1080    320
+16 2018-12-25 Northern Cairngorms NJ001041 -3.651359 57.11695 1080    320
+17 2018-12-25 Northern Cairngorms NJ001041 -3.651359 57.11695 1080    320
+18 2019-01-14 Northern Cairngorms NJ006038 -3.642986 57.11436 1190    154
+19 2019-01-14 Northern Cairngorms NJ006038 -3.642986 57.11436 1190    154
+20 2019-01-14 Northern Cairngorms NJ006038 -3.642986 57.11436 1190    154
+21 2019-03-20 Northern Cairngorms NJ001041 -3.651359 57.11695 1090    360
+22 2019-03-20 Northern Cairngorms NJ001041 -3.651359 57.11695 1090    360
+23 2019-03-20 Northern Cairngorms NJ001041 -3.651359 57.11695 1090    360
+24 2014-12-25 Southern Cairngorms NO261858 -3.216746 56.95751  900    120
+25 2014-12-25 Southern Cairngorms NO261858 -3.216746 56.95751  900    120
+26 2019-01-21            Torridon NH223733 -4.984732 57.71423  744      6
+27 2019-01-21            Torridon NH223733 -4.984732 57.71423  744      6
+28 2020-01-12            Torridon NG986610 -5.371586 57.59395  748     49
+29 2020-01-12            Torridon NG986610 -5.371586 57.59395  748     49
+   Incline                              Location      Obs            FAH
+1       30                         Choillie-Rais       WS Considerable -
+2       39                   Coire Choillie-Rais       WS Considerable -
+3       30                         Sron a Ghoire       WS       Moderate
+4       30  Sron a Ghoire, Btm of Bumslide Gully       WS       Moderate
+5       30      Coire a Chriochaerin,Liffa gully       WS       Moderate
+6       30     Coire a Chriochaerin, Liffa gully       WS       Moderate
+7       23                   Chais headwall area   MD, KG       Moderate
+8       23                   Chais headwall area   MD, KG       Moderate
+9       23                   Chais headwall area   MD, KG       Moderate
+10      23                Fiachail headwall area   MD, KG Considerable -
+11      25                       Sron an Aonach     MD,IC       Moderate
+12      25                       Sron an Aonach     MD,IC       Moderate
+13      32                    Chais Headwall top       MD       Moderate
+14      32                    Chais Headwall top       MD       Moderate
+15      32                                   CHW MD,LD,ND            Low
+16      32                                   CHW MD,LD,ND            Low
+17      32                                   CHW MD,LD,ND            Low
+18      NA                           Cairngorm S       MD            Low
+19      28                           Cairngorm S       MD            Low
+20      28                           Cairngorm S       MD            Low
+21      42                                   CHW       MD       Moderate
+22      42                                   CHW       MD       Moderate
+23      42                                   CHW       MD       Moderate
+24      25                         Lochnagar Col       SN               
+25      25                         Lochnagar Col       SN Considerable -
+26      31 Beinn Liath Mhor Fannaich, North top.       AC       Moderate
+27      31 Beinn Liath Mhor Fannaich, North Top.       AC       Moderate
+28      34             Creag Dhubh, Beinn Eighe.       AC            Low
+29      34             Creag Dhubh, Beinn Eighe.       AC            Low
+   Air.Temp Wind.Dir Wind.Speed Cloud       Precip.Code Drift Total.Snow.Depth
+1      -1.6      270         40   100  6 - Snow Showers     1               60
+2      -1.6      270         40   100  6 - Snow Showers     1               60
+3      -1.8      240          0    30 4 - Light Showers     1               37
+4      -2.8      240          0    20 4 - Light Showers     1               37
+5       1.5      220         20   100 4 - Light Showers     1               50
+6       1.5      220         20   100 4 - Light Showers     1               50
+7      -0.2      260         25   100 4 - Light Showers     1              150
+8      -0.2      260         25   100 4 - Light Showers     1              150
+9      -0.2      260         25   100 4 - Light Showers     1              150
+10      0.0      260         25   100 4 - Light Showers     1              150
+11      1.0      280         10   100          0 - None     0              130
+12      1.0      280         10   100          0 - None     0              130
+13     -2.6      130         25     0          0 - None     1               80
+14     -2.6      130         25     0          0 - None     1               80
+15      7.0      280         15    75          0 - None     0               98
+16      7.0      280         15    75          0 - None     0               98
+17      7.0      280         15    75          0 - None     0               98
+18       NA       NA         NA    NA          0 - None     1               NA
+19     -3.4      270         30     0          0 - None     1               35
+20     -3.4      270         30     0          0 - None     1               35
+21      5.0      230         15    95          0 - None     0              105
+22      5.0      230         15    95          0 - None     0              105
+23      5.0      230         15    95          0 - None     0              105
+24     -3.2      350          1    10          0 - None     0              120
+25     -3.2      350          1    10          0 - None     0              120
+26     -0.1      194         16   100         2 - Trace     1               49
+27     -0.1      194         16   100         2 - Trace     1               49
+28     -0.5       98          5    50  6 - Snow Showers     1               38
+29     -0.5       98          5    50  6 - Snow Showers     1               38
+   Foot.Pen Ski.Pen Rain.at.900 Summit.Air.Temp Summit.Wind.Dir
+1         8      NA           1              NA              NA
+2         8      NA           1              NA              NA
+3        30       0           0            -6.0             240
+4        30       0           0            -6.0             240
+5         5       0           0            -2.0             230
+6         5       0           0            -2.0             220
+7        20       0           1            -2.7             233
+8        20       0           1            -2.7             233
+9        20       0           1            -2.7             233
+10       20       0           1            -2.7             233
+11       20      NA           1             0.0             280
+12       20       0           1             0.0             280
+13        5      NA           0            -3.8             157
+14        5       0           0            -3.8             157
+15        5      NA           0             7.0             275
+16        5      NA           0             7.0             275
+17        5       0           0             7.0             275
+18       NA      NA           0              NA              NA
+19       20      NA           0            -4.5             317
+20       20       0           0            -4.5             317
+21       20      NA           0             2.9             263
+22       20      NA           0             2.9             263
+23       20       0           0             2.9             263
+24       20       0           0            -3.8             326
+25       20       0           0            -3.8             326
+26       30       0           0            -1.2             180
+27       30       0           0            -1.2             180
+28       15       0           0            -2.0             247
+29       15       0           0            -2.0             247
+   Summit.Wind.Speed Max.Temp.Grad Max.Hardness.Grad No.Settle Snow.Index
+1                 NA            NA                NA       200          6
+2                 NA           0.0                 3       200          6
+3                 18           1.6                 2        54          0
+4                 18           1.6                 1        58          0
+5                  7           0.1                 2       212          0
+6                  7           0.1                 2       216          0
+7                 51            NA                NA       178         NA
+8                 51            NA                NA       178         NA
+9                 51            NA                NA       178         NA
+10                51           0.0                 3       182         NA
+11                40            NA                NA         6          2
+12                40           1.0                 2         6          2
+13                40            NA                NA       102         NA
+14                40           1.2                 1       102          0
+15                35            NA                NA        20         NA
+16                35            NA                NA        20         NA
+17                35           0.0                 3        20          0
+18                NA            NA                NA        36         NA
+19                39            NA                NA        36         NA
+20                39           1.4                 2        36          0
+21                28            NA                NA       180         NA
+22                28            NA                NA       180         NA
+23                28           0.1                 1       180          0
+24                26           3.3                 1        76          0
+25                26           3.3                 1        76          0
+26                31           0.7                 1        50          0
+27                31           0.7                 1        52          0
+28                24           1.0                 2        62          0
+29                24           1.0                 2        68          0
+   Insolation Crystals Wetness AV.Cat Snow.Temp            DateTime year month
+1          10       NA       1     NA        NA 2012-03-07 12:45:00 2012     3
+2          10       NA       1     NA      -0.8 2012-03-07 12:45:00 2012     3
+3           4        0       1      0      -3.1 2019-01-22 12:00:00 2019     1
+4           4        0       1      0      -2.9 2019-01-22 12:00:00 2019     1
+5          20        0       2      0      -0.1 2022-04-06 11:00:00 2022     4
+6          20        0       1      0      -0.1 2022-04-06 11:00:00 2022     4
+7           4        5       2     -1       0.0 2016-02-01 12:00:00 2016     2
+8           4        5       2     -1       0.0 2016-02-01 12:00:00 2016     2
+9           4        5       2     -1       0.0 2016-02-01 12:00:00 2016     2
+10          4        5       2     -1       0.0 2016-02-01 12:00:00 2016     2
+11          8       10       1     NA       0.0 2016-03-01 12:00:00 2016     3
+12          8       10       1      0       0.0 2016-03-01 12:00:00 2016     3
+13          6        0       1     NA      -5.5 2017-02-14 12:45:00 2017     2
+14          6        0       1      0      -5.5 2017-02-14 12:45:00 2017     2
+15          2        0       1     NA        NA 2018-12-25 11:30:00 2018    12
+16          2        0       1     NA        NA 2018-12-25 11:30:00 2018    12
+17          2        0       1      0       0.0 2018-12-25 11:30:00 2018    12
+18          3        0       2     NA        NA 2019-01-14 11:30:00 2019     1
+19          3        0       1     NA      -2.4 2019-01-14 11:30:00 2019     1
+20          3        0       1      0      -2.4 2019-01-14 11:30:00 2019     1
+21         12        0       2     NA       0.0 2019-03-20 12:54:00 2019     3
+22         12        0       2     NA       0.0 2019-03-20 12:54:00 2019     3
+23         12        0       1      0       0.0 2019-03-20 12:54:00 2019     3
+24          2        0       1     -1      -7.3 2014-12-25 09:45:00 2014    12
+25          2        0       1     -1      -7.3 2014-12-25 09:45:00 2014    12
+26          4        0       1      0      -1.4 2019-01-21 11:09:00 2019     1
+27          4        0       1      0      -1.4 2019-01-21 11:09:00 2019     1
+28          3        0       1      0      -1.0 2020-01-12 11:03:00 2020     1
+29          3        0       1      0      -1.0 2020-01-12 11:03:00 2020     1
+   doy season        FAH_ord dup_n
+1   67    MAM Considerable -     2
+2   67    MAM Considerable -     2
+3   22    DJF       Moderate     2
+4   22    DJF       Moderate     2
+5   96    MAM       Moderate     2
+6   96    MAM       Moderate     2
+7   32    DJF       Moderate     4
+8   32    DJF       Moderate     4
+9   32    DJF       Moderate     4
+10  32    DJF Considerable -     4
+11  61    MAM       Moderate     2
+12  61    MAM       Moderate     2
+13  45    DJF       Moderate     2
+14  45    DJF       Moderate     2
+15 359    DJF            Low     3
+16 359    DJF            Low     3
+17 359    DJF            Low     3
+18  14    DJF            Low     3
+19  14    DJF            Low     3
+20  14    DJF            Low     3
+21  79    MAM       Moderate     3
+22  79    MAM       Moderate     3
+23  79    MAM       Moderate     3
+24 359    DJF           &lt;NA&gt;     2
+25 359    DJF Considerable -     2
+26  21    DJF       Moderate     2
+27  21    DJF       Moderate     2
+28  12    DJF            Low     2
+29  12    DJF            Low     2</code></pre>
+</div>
+</div>
+<p>Some of these rows don’t just differ by NA, but have conflicting numeric values. For these, keep both records, but for those that only differ by an NA, collapse the rows to keep the most numeric values per column.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="do">## 0) Define and validate keys -----------------------------------------------</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>key_cols <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"Date"</span>, <span class="st">"OSgrid"</span>, <span class="st">"Area"</span>)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>missing_keys <span class="ot">&lt;-</span> <span class="fu">setdiff</span>(key_cols, <span class="fu">names</span>(aval))</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">length</span>(missing_keys)) {</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">stop</span>(<span class="st">"These key columns are not in `aval`: "</span>, <span class="fu">paste</span>(missing_keys, <span class="at">collapse =</span> <span class="st">", "</span>))</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="do">## 1) Build candidate non-key columns once (and be explicit) -----------------</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>non_key_cols <span class="ot">&lt;-</span> <span class="fu">setdiff</span>(<span class="fu">names</span>(aval), key_cols)</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="do">## 2) Find conflicts in ANY column type (numeric OR categorical) -------------</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co"># - use any_of() so it won't error if something is off</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="co"># - n_distinct on na.omit for each column within the key</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>wide_conflicts <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(<span class="fu">across</span>(<span class="fu">all_of</span>(key_cols))) <span class="sc">%&gt;%</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">across</span>(<span class="fu">all_of</span>(non_key_cols), <span class="sc">~</span> <span class="fu">n_distinct</span>(<span class="fu">na.omit</span>(.x)), <span class="at">.names =</span> <span class="st">"nuniq_{.col}"</span>),</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">"drop"</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>  <span class="co"># mark groups where any column has &gt;1 distinct observed value</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">any_conflict =</span> <span class="fu">if_any</span>(<span class="fu">starts_with</span>(<span class="st">"nuniq_"</span>), <span class="sc">~</span> .x <span class="sc">&gt;</span> <span class="dv">1</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(any_conflict) <span class="sc">%&gt;%</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="fu">all_of</span>(key_cols)) <span class="sc">%&gt;%</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>()</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a><span class="do">## 3) Collapse only conflict-free groups -------------------------------------</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a><span class="co"># typed NA + first_non_na for safe collapsing</span></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>first_non_na <span class="ot">&lt;-</span> <span class="cf">function</span>(x) {</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>  i <span class="ot">&lt;-</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">is.na</span>(x))[<span class="dv">1</span>]</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">is.na</span>(i)) x[<span class="cn">NA_integer_</span>] <span class="cf">else</span> x[i]</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>collapsed_ok <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>  <span class="fu">anti_join</span>(wide_conflicts, <span class="at">by =</span> key_cols) <span class="sc">%&gt;%</span></span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(<span class="fu">across</span>(<span class="fu">all_of</span>(key_cols))) <span class="sc">%&gt;%</span></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>    <span class="fu">across</span>(<span class="fu">all_of</span>(non_key_cols), first_non_na),</span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>    <span class="at">.rows_collapsed =</span> dplyr<span class="sc">::</span><span class="fu">n</span>(),</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>    <span class="at">.collapsed =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">"drop"</span></span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a><span class="do">## 4) Keep conflicting groups as-is (flag them) -------------------------------</span></span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a>kept_conflicts <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span></span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>  <span class="fu">semi_join</span>(wide_conflicts, <span class="at">by =</span> key_cols) <span class="sc">%&gt;%</span></span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">.collapsed =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a><span class="do">## 5) Combine and (optionally) drop flags ------------------------------------</span></span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a>aval_dups_resolved <span class="ot">&lt;-</span> <span class="fu">bind_rows</span>(collapsed_ok, kept_conflicts) <span class="sc">%&gt;%</span></span>
+<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">across</span>(<span class="fu">all_of</span>(key_cols)))</span>
+<span id="cb7-52"><a href="#cb7-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a>aval <span class="ot">&lt;-</span> aval_dups_resolved <span class="sc">%&gt;%</span> <span class="fu">select</span>(<span class="sc">-</span>.collapsed, <span class="sc">-</span>.rows_collapsed)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="investigate-missing-data" class="level1">
+<h1>Investigate missing data</h1>
+<section id="visualise-missingness" class="level2">
+<h2 class="anchored" data-anchor-id="visualise-missingness">Visualise missingness</h2>
+<p>Determine the percentage missing values per variable and visualise this.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 39 × 2
+   variable          pct_missing
+   &lt;chr&gt;                   &lt;dbl&gt;
+ 1 AV.Cat                  23.3 
+ 2 Ski.Pen                 22.5 
+ 3 Summit.Wind.Dir         12.4 
+ 4 Crystals                 9.26
+ 5 Summit.Wind.Speed        8.52
+ 6 Summit.Air.Temp          7.07
+ 7 Snow.Index               6.96
+ 8 Max.Temp.Grad            6.62
+ 9 Max.Hardness.Grad        5.86
+10 Wetness                  5.40
+# ℹ 29 more rows</code></pre>
+</div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-6-1.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-7-1.png" class="img-fluid figure-img" width="672"></p>
 </figure>
 </div>
 </div>
-<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>naniar<span class="sc">::</span><span class="fu">vis_miss</span>(aval)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-6-2.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-7-2.png" class="img-fluid figure-img" width="672"></p>
 </figure>
 </div>
 </div>
 </div>
-<p>From the above, only 10 variables have more than 5% of their values missing. Careful attention is paid to these below. The remaining variables have <span class="math inline">\(&lt;5\%\)</span> missing values and will simply be imputed with a K-Nearest Neighbor approach.</p>
+</section>
+<section id="strategy-for-missing-values" class="level2">
+<h2 class="anchored" data-anchor-id="strategy-for-missing-values">Strategy for missing values</h2>
+<p>From the above, only 10 variables have more than 5% of their values missing. Careful attention is paid to these below. The remaining variables have <span class="math inline">\(&lt;5\%\)</span> missing values and will simply be imputed with a Bagged-tree imputation approach.</p>
 <p>Of the variables missing more than 5%, we first need to determine if the missingness carries meaning. The list of variables is thus split in two, one where missingness does carry meaning and need to be accounted for and one where it does not.</p>
-The variables that do need to be accounted for and the method to account for it are:
-Those that do not need to be accounted for are:
-<p>These variables will also be imputed with KNN.</p>
+<p>The variables that do need to be accounted for are: - <strong><code>AV.Cat</code> (23.4%)</strong>: Missing avalanche category values likely mean that no category was assigned for that day. Forecasters usually provide a category when avalanches are observed or when conditions are clear enough to classify. If it is missing, that could itself indicate that avalanches were not observed or that conditions were uncertain, which is meaningful information about overall stability.</p>
+<ul>
+<li><p><strong><code>Ski.Pen</code> (22.5%)</strong>: Ski penetration is only recorded when conditions allow observers to ski on the slope. If this field is missing, it often means the snow was too hard, too shallow, or otherwise unsuitable for skiing. This absence therefore reflects snow surface properties that can be related to avalanche hazard.</p></li>
+<li><p><strong><code>Crystals</code> (9.3%)</strong>: Crystal type is identified through snow-pit observations. Missing values here often mean that no pit was dug on that day, which in turn may depend on perceived stability, time constraints, or safety concerns. Thus, the lack of a crystal observation can itself provide information about conditions.</p></li>
+<li><p><strong><code>Wetness</code> (5.4%)</strong>: Wetness is typically noted when meltwater or damp snow is present. If this field is missing, it may indicate that the snow was dry and that observers did not see a reason to record wetness. Hence, missingness can indirectly point to dry-snow conditions.</p></li>
+<li><p><strong><code>Snow.Index</code> (7.0%)</strong>: This is a derived stability metric based on snowpack tests. If the value is missing, it likely means the relevant tests were not carried out, perhaps because conditions didn’t warrant them. This absence can therefore reflect judgments about snow stability.</p></li>
+<li><p><strong><code>Summit.Wind.Dir_sin / Summit.Wind.Dir_cos</code> (12.4%), <code>Summit.Wind.Speed</code> (8.5%), and <code>Summit.Air.Temp</code> (7.1%)</strong>: Missing summit weather variables may not just be sensor errors. It is plausible that readings were unavailable because weather at the summit was too extreme or dangerous for measurement, such as during storms or blizzards. In that case, missingness itself could be linked to hazardous conditions.</p></li>
+</ul>
+<p>For each of these, an indicator will be created to show if the value was missing.</p>
+<p>Those variables that do not need explicit missingness indicators are:</p>
+<ul>
+<li><p><strong><code>Max.Temp.Grad</code> (6.7%)</strong>: This variable reflects temperature gradients measured in snow-pit tests. When missing, it is usually because the snow-pit test was not performed. However, the decision not to perform a pit is already captured by other variables where missingness is more clearly informative (e.g.&nbsp;<code>Crystals</code>, <code>Snow.Index</code>). Adding another indicator here would add redundancy without extra insight. The values themselves will be imputed with KNN.</p></li>
+<li><p><strong><code>Max.Hardness.Grad</code> (5.9%)</strong>: Like <code>Max.Temp.Grad</code>, hardness gradients are only measured in pits. Missing values again overlap with the same “pit not performed” scenario already captured by other indicators. For this reason, a separate indicator is unnecessary. The variable will be imputed with KNN to fill the missing numeric values.</p></li>
+</ul>
+<p>After the relevant indicators are created, all remaining missing values will be imputed with <strong>Bagged tree imputation</strong>. Bagged tree imputation is a machine-learning approach where missing values in a variable are predicted using an ensemble of decision trees fit on the observed cases. Each tree is trained on a bootstrap sample of the data, and predictions are averaged across trees to produce stable and robust imputations. Unlike simple mean/median imputation or KNN, bagged trees can capture non-linear relationships and interactions among predictors, making them well suited to complex, structured data.</p>
+<p>In the avalanche dataset, where variables combine topography, weather, and snowpack characteristics, and missingness can depend on multiple interacting factors, bagged tree imputation offers a principled way to exploit those dependencies while limiting noise from any single predictor. This allows us to fill gaps more realistically while preserving the multivariate structure that is important for downstream modeling with neural networks.</p>
+<p>The imputation will be done at a later stage. At first, the data still needs to be cleaned. Note that these missing values were intentionally set now before looking at improbable or outlier values below that are then encoded as NA. The reason for this is to truly only capture “meaningful” missingness in these indicators and not convolute them with missingness due to incorrect values being entered.</p>
+</section>
+</section>
+<section id="cleaning-of-continuous-variables" class="level1">
+<h1>Cleaning of continuous variables</h1>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">unique</span>(aval<span class="sc">$</span>AV.Cat)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>nums <span class="ot">&lt;-</span> <span class="fu">names</span>(dplyr<span class="sc">::</span><span class="fu">select</span>(aval, <span class="fu">where</span>(is.numeric)))</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>n_tot <span class="ot">&lt;-</span> <span class="fu">nrow</span>(aval)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>cont_summary <span class="ot">&lt;-</span> <span class="fu">tibble</span>(<span class="at">variable =</span> nums) <span class="sc">%&gt;%</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rowwise</span>() <span class="sc">%&gt;%</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">n_nonmiss   =</span> <span class="fu">sum</span>(<span class="sc">!</span><span class="fu">is.na</span>(aval[[variable]])),</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">n_missing   =</span> n_tot <span class="sc">-</span> n_nonmiss,</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_missing =</span> <span class="fu">round</span>(<span class="dv">100</span> <span class="sc">*</span> n_missing <span class="sc">/</span> n_tot, <span class="dv">2</span>),</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">mean   =</span> <span class="cf">if</span> (n_nonmiss <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="fu">mean</span>(aval[[variable]], <span class="at">na.rm =</span> <span class="cn">TRUE</span>)   <span class="cf">else</span> <span class="cn">NA_real_</span>,</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">median =</span> <span class="cf">if</span> (n_nonmiss <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="fu">median</span>(aval[[variable]], <span class="at">na.rm =</span> <span class="cn">TRUE</span>) <span class="cf">else</span> <span class="cn">NA_real_</span>,</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">min    =</span> <span class="cf">if</span> (n_nonmiss <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="fu">min</span>(aval[[variable]], <span class="at">na.rm =</span> <span class="cn">TRUE</span>)    <span class="cf">else</span> <span class="cn">NA_real_</span>,</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">max    =</span> <span class="cf">if</span> (n_nonmiss <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="fu">max</span>(aval[[variable]], <span class="at">na.rm =</span> <span class="cn">TRUE</span>)    <span class="cf">else</span> <span class="cn">NA_real_</span>,</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">sd     =</span> <span class="cf">if</span> (n_nonmiss <span class="sc">&gt;</span> <span class="dv">1</span>) <span class="fu">sd</span>(aval[[variable]],  <span class="at">na.rm =</span> <span class="cn">TRUE</span>)    <span class="cf">else</span> <span class="cn">NA_real_</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>() <span class="sc">%&gt;%</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(pct_missing), variable)</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>cont_summary</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code> [1]    NA     3    -2     2     1     4  8800    -1     0  1021  4400 -9999
-[13]    99    88    44  5031   121</code></pre>
+<pre><code># A tibble: 35 × 9
+   variable        n_nonmiss n_missing pct_missing     mean median     min   max
+   &lt;chr&gt;               &lt;int&gt;     &lt;int&gt;       &lt;dbl&gt;    &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt; &lt;dbl&gt;
+ 1 AV.Cat               8177      2490       23.3  -322.       0   -9999    8800
+ 2 Ski.Pen              8267      2400       22.5     0.593    0      -1      55
+ 3 Summit.Wind.Dir      9349      1318       12.4   200.     220      -2    2213
+ 4 Crystals             9679       988        9.26    1.45     0      -1      15
+ 5 Summit.Wind.Sp…      9758       909        8.52   27.9     25      -8     360
+ 6 Summit.Air.Temp      9913       754        7.07   -1.24    -1.3   -13.4    15
+ 7 Snow.Index           9925       742        6.96    1.79     0      -1     368
+ 8 Max.Temp.Grad        9961       706        6.62    1.21     0.2     0     130
+ 9 Max.Hardness.G…     10042       625        5.86    2.04     2       0       5
+10 Wetness             10091       576        5.4     1.41     1      -1      10
+# ℹ 25 more rows
+# ℹ 1 more variable: sd &lt;dbl&gt;</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">unique</span>(aval<span class="sc">$</span>Ski.Pen)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<section id="resonable-variables" class="level3">
+<h3 class="anchored" data-anchor-id="resonable-variables">Resonable variables</h3>
+<p>The following variables seemed reasonable in terms of outliers or impossible values: 1. AV.Cat 2. Crystals 3. Summit.Air.Temp 4. Max.Hardness.Grad 5. Air Temperature 6. Summit.Wind.Speed (assume wind speeds are in km/h) 7. Wind.Speed (assume wind speeds are in km/h)</p>
+<p>The remaining numerical variables were all cleaned.</p>
+</section>
+<section id="ski-penetration" class="level3">
+<h3 class="anchored" data-anchor-id="ski-penetration">Ski Penetration</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>Ski.Pen)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-10-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">which</span>(aval<span class="sc">$</span>Ski.Pen<span class="sc">&lt;</span><span class="dv">0</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code> [1] NA 25 30 20 15 10  7  9 12 23  5  1 40  6  8 50 -1 55  0  4 17 39  2  3 16
-[26] 22 18 35 45</code></pre>
+<pre><code>[1] 4</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># remove all values &lt;0:</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>aval<span class="sc">$</span>Ski.Pen[aval<span class="sc">$</span>Ski.Pen<span class="sc">&lt;</span><span class="dv">0</span>] <span class="ot">&lt;-</span> <span class="cn">NA_real_</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="snow-index" class="level3">
+<h3 class="anchored" data-anchor-id="snow-index">Snow Index</h3>
+<p>Snow.Index is a derived stability score based on field observations such as penetration tests, hardness gradients, and crystal type.</p>
+<p>Initial suspicion: At first glance, the distribution of Snow.Index raised concerns because the vast majority of observations (over 7,700 of 10,671) had a value of zero, with only 57 unique values overall. Given the large number of missing entries in related snowpit variables, this pattern suggested that a zero might be functioning as a placeholder for “no measurement taken,” rather than a genuine stability score.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># unique(aval$Snow.Index)</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="co"># length(unique(aval$Snow.Index)) #57</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>Snow.Index, <span class="at">breaks =</span> <span class="dv">30</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-11-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># length(which(aval$Snow.Index&gt;100)) # 28</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="co"># length(which(aval$Snow.Index&gt;50)) # 35</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="co"># length(which(aval$Snow.Index&lt;0)) # 70</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co"># length(which(aval$Snow.Index&gt;0 &amp; aval$Snow.Index&lt;20)) # 2021</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="co"># length(which(aval$Snow.Index==0)) # 7770 actually equals 0</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Let’s try to confirm this suspicion by doing some checks. The following table looks at the distribution of values for other variables whre Snow.Index is zero.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Which rows have Snow.Index == 0 ?</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>idx_zero <span class="ot">&lt;-</span> aval<span class="sc">$</span>Snow.Index <span class="sc">==</span> <span class="dv">0</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare % missing in other key variables for zero vs non-zero Snow.Index</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>aval <span class="sc">%&gt;%</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">group =</span> <span class="fu">case_when</span>(</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    Snow.Index <span class="sc">==</span> <span class="dv">0</span> <span class="sc">~</span> <span class="st">"Zero"</span>,</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">is.na</span>(Snow.Index) <span class="sc">~</span> <span class="st">"NA"</span>,</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    <span class="cn">TRUE</span> <span class="sc">~</span> <span class="st">"Non-zero"</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>  )) <span class="sc">%&gt;%</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">across</span>(<span class="fu">c</span>(Ski.Pen, Foot.Pen, Crystals, Wetness, Max.Temp.Grad, Max.Hardness.Grad),</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>           <span class="sc">~</span> <span class="fu">mean</span>(<span class="fu">is.na</span>(.)), </span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>           <span class="at">.names =</span> <span class="st">"{.col}_missing_rate"</span>),</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">n =</span> <span class="fu">n</span>(),</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">.by =</span> group</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 3 × 8
+  group    Ski.Pen_missing_rate Foot.Pen_missing_rate Crystals_missing_rate
+  &lt;chr&gt;                   &lt;dbl&gt;                 &lt;dbl&gt;                 &lt;dbl&gt;
+1 Non-zero                0.554               0.00325                0.167 
+2 NA                      0.569               0.0148                 0.674 
+3 Zero                    0.101               0.00309                0.0165
+# ℹ 4 more variables: Wetness_missing_rate &lt;dbl&gt;,
+#   Max.Temp.Grad_missing_rate &lt;dbl&gt;, Max.Hardness.Grad_missing_rate &lt;dbl&gt;,
+#   n &lt;int&gt;</code></pre>
+</div>
+</div>
+<p>Further inspection: However, when the missingness patterns were examined, rows with a Snow.Index of zero showed very low missingness in other snowpit variables (typically less than 10%). This indicates that these zeros are not simply standing in for absent measurements. Instead, they appear to represent true observations where no instability was detected. On this basis, zeros were retained as valid values, and only genuine missing entries (NA) were flagged for imputation.</p>
+</section>
+<section id="wetness" class="level3">
+<h3 class="anchored" data-anchor-id="wetness">Wetness</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>Wetness)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-13-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">unique</span>(aval<span class="sc">$</span>Wetness) <span class="co"># looks more like an index, keep as is.</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1]  1  0 NA 10  2  6  3  4 -1</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># length(which(aval$Wetness&gt;9))</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="insolation" class="level3">
+<h3 class="anchored" data-anchor-id="insolation">Insolation</h3>
+<p>Insolation measures the incoming solar radiation at the observation site, here recorded on a coded scale ranging mostly from 0–20. This index reflects sunlight exposure, which plays an important role in snowpack warming and wet-snow avalanche activity. A small number of observations fall outside the expected range, including negative values and extreme outliers above 20 (e.g., -55, 106, 208). Since these are not physically meaningful, they were treated as data entry errors and recoded as missing for later imputation.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>Insolation)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-14-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">unique</span>(aval<span class="sc">$</span>Insolation)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> [1]   2  NA   3   4   6   8  10  12  20   5  15   0 208 -37  -1 -55 106  16</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(aval<span class="sc">$</span>Insolation)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+ -55  -37   -1    0    2    3    4    5    6    8   10   12   15   16   20  106 
+   1    1    2   15 1626 1219 1410    2 1184 1209 1217 1240    9    9 1014    1 
+ 208 
+   1 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># encode &lt;0 and &gt;20 as NA</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>aval<span class="sc">$</span>Insolation[<span class="fu">which</span>(aval<span class="sc">$</span>Insolation<span class="sc">&lt;</span><span class="dv">0</span> <span class="sc">|</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>                        aval<span class="sc">$</span>Insolation<span class="sc">&gt;</span><span class="dv">20</span>)] <span class="ot">&lt;-</span> <span class="cn">NA_real_</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="snow-temperature" class="level3">
+<h3 class="anchored" data-anchor-id="snow-temperature">Snow Temperature</h3>
+<p>Snow.Temp records the snowpack temperature in degrees Celsius. Values in this dataset range from -13 to 124 °C. Since snow cannot persist above 0 °C, values above 5 °C were considered physically implausible and were recoded as missing for later imputation. Negative values down to -13 °C were retained as realistic cold-snow conditions.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>Snow.Temp)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-15-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sort</span>(<span class="fu">unique</span>(aval<span class="sc">$</span>Snow.Temp))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  [1] -13.1 -12.4 -12.2 -11.9 -11.6 -11.2 -10.8 -10.5 -10.2 -10.1 -10.0  -9.9
+ [13]  -9.7  -9.6  -9.5  -9.4  -9.3  -9.2  -9.1  -9.0  -8.9  -8.8  -8.7  -8.6
+ [25]  -8.5  -8.4  -8.3  -8.2  -8.1  -8.0  -7.9  -7.8  -7.7  -7.6  -7.5  -7.4
+ [37]  -7.3  -7.2  -7.1  -7.0  -6.9  -6.8  -6.7  -6.6  -6.5  -6.4  -6.3  -6.2
+ [49]  -6.1  -6.0  -5.9  -5.8  -5.7  -5.6  -5.5  -5.4  -5.3  -5.2  -5.1  -5.0
+ [61]  -4.9  -4.8  -4.7  -4.6  -4.5  -4.4  -4.3  -4.2  -4.1  -4.0  -3.9  -3.8
+ [73]  -3.7  -3.6  -3.5  -3.4  -3.3  -3.2  -3.1  -3.0  -2.9  -2.8  -2.7  -2.6
+ [85]  -2.5  -2.4  -2.3  -2.2  -2.1  -2.0  -1.9  -1.8  -1.7  -1.6  -1.5  -1.4
+ [97]  -1.3  -1.2  -1.1  -1.0  -0.9  -0.8  -0.7  -0.6  -0.5  -0.4  -0.3  -0.2
+[109]  -0.1   0.0   0.1   0.2   0.3   0.4   0.5   0.7   0.8   0.9   1.0   1.1
+[121]   1.2   1.3   1.4   1.6   1.7   1.8   1.9   2.0   2.1   2.2   2.3   2.4
+[133]   2.5   2.6   2.7   2.9   3.0   3.1   3.2   3.3   3.4   3.5   4.0   4.1
+[145]   4.3   4.4   4.5   4.6   4.8   5.0   5.1   5.2   5.5   5.6   5.7   5.8
+[157]   6.0   6.2   6.3   6.4   6.5   6.6   6.8   7.0   7.4   7.5   7.7   8.0
+[169]   8.5   8.8   9.0  10.0  11.0  12.0  13.0  14.0  15.0  16.0  17.0  19.0
+[181]  20.0  21.0  22.0  23.0  24.0  25.0  26.0  27.0  29.0  30.0  31.0  32.0
+[193]  33.0  34.0  35.0  36.0  37.0  38.0  40.0  41.0  43.0  45.0  47.0  48.0
+[205]  49.0  50.0  51.0  52.0  53.0  54.0  55.0  56.0  57.0  60.0  61.0  62.0
+[217]  63.0  64.0  65.0  66.0  67.0  70.0  71.0  72.0  73.0  75.0  76.0  77.0
+[229]  80.0  81.0  82.0  85.0  88.0  95.0 102.0 124.0</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">which</span>(aval<span class="sc">$</span>Snow.Temp<span class="sc">&gt;</span><span class="dv">5</span>)) <span class="co"># 176</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 176</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">which</span>(aval<span class="sc">$</span>Snow.Temp<span class="sc">&lt;</span><span class="dv">10</span>)) <span class="co"># 10127</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 10125</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># make all values above 5 NA</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>aval<span class="sc">$</span>Snow.Temp[<span class="fu">which</span>(aval<span class="sc">$</span>Snow.Temp<span class="sc">&gt;</span><span class="dv">5</span>)] <span class="ot">&lt;-</span> <span class="cn">NA_real_</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="aspect" class="level3">
+<h3 class="anchored" data-anchor-id="aspect">Aspect</h3>
+<p>Aspect describes the compass direction of the slope, measured in degrees clockwise from north (0–360°). It influences how much solar radiation a slope receives and therefore affects snow metamorphism and avalanche risk. In the dataset, any values outside the valid range of 0–360° were considered invalid and recoded as missing for later imputation.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>Aspect)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-16-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">which</span>(aval<span class="sc">$</span>Aspect<span class="sc">&gt;</span><span class="dv">360</span>)) <span class="co"># only 8- make these NA</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 8</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">which</span>(aval<span class="sc">$</span>Aspect<span class="sc">&lt;</span><span class="dv">0</span>)) <span class="co"># only 4- make these NA</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 4</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="co"># make values &gt;360 and &lt;0 NA:</span></span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>aval<span class="sc">$</span>Aspect[<span class="fu">which</span>(aval<span class="sc">$</span>Aspect<span class="sc">&lt;</span><span class="dv">0</span> <span class="sc">|</span></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a>                    aval<span class="sc">$</span>Aspect<span class="sc">&gt;</span><span class="dv">360</span>)] <span class="ot">&lt;-</span> <span class="cn">NA_real_</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="no.settle" class="level3">
+<h3 class="anchored" data-anchor-id="no.settle">No.Settle</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>No.Settle) <span class="co"># looks fine</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-17-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="total-snow-depth" class="level3">
+<h3 class="anchored" data-anchor-id="total-snow-depth">Total Snow Depth</h3>
+<p>Total Snow depth represents the measured thickness of the snowpack in centimeters. Most values lie between 0–500 cm, which is consistent with expected conditions in the observation areas. Negative values are not physically possible, while a small number of extreme outliers above 500 cm were judged unrealistic for the region. These implausible entries were recoded as missing for later imputation.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb44"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>Total.Snow.Depth)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-18-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">which</span>(aval<span class="sc">$</span>Total.Snow.Depth<span class="sc">&gt;</span><span class="dv">500</span>)) <span class="co"># only 14</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 14</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">which</span>(aval<span class="sc">$</span>Total.Snow.Depth<span class="sc">&lt;</span><span class="dv">0</span>)) <span class="co"># only 38</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 38</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb49"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>aval<span class="sc">$</span>Total.Snow.Depth[<span class="fu">which</span>(aval<span class="sc">$</span>Total.Snow.Depth<span class="sc">&gt;</span><span class="dv">500</span><span class="sc">|</span></span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>                              aval<span class="sc">$</span>Total.Snow.Depth<span class="sc">&lt;</span><span class="dv">0</span>)] <span class="ot">&lt;-</span> <span class="cn">NA_real_</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="wind-direction-and-summit-wind-direction" class="level3">
+<h3 class="anchored" data-anchor-id="wind-direction-and-summit-wind-direction">Wind Direction and Summit Wind Direction</h3>
+<p>Wind direction values less than 0° or greater than 360° are not physically possible. Since the source of these errors is unknown, they were treated as missing (NA) rather than corrected by assumption. These missing values will later be imputed using bagged-tree models, with a corresponding missingness indicator retained to capture any systematic patterns in measurement failure.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb50"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>Summit.Wind.Dir) <span class="co"># clear outliers/ noise</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-19-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb51"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>Wind.Dir) <span class="co"># clear outliers/ noise</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-19-2.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb52"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="co"># length(which(aval$Summit.Wind.Dir&gt;360)) # 4</span></span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a><span class="co"># length(which(aval$Summit.Wind.Dir&lt;0)) # 191</span></span>
+<span id="cb52-3"><a href="#cb52-3" aria-hidden="true" tabindex="-1"></a><span class="co"># length(which(aval$Wind.Dir&gt;360)) # 1</span></span>
+<span id="cb52-4"><a href="#cb52-4" aria-hidden="true" tabindex="-1"></a><span class="co"># length(which(aval$Wind.Dir&lt;0)) # 13</span></span>
+<span id="cb52-5"><a href="#cb52-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb52-6"><a href="#cb52-6" aria-hidden="true" tabindex="-1"></a><span class="co"># assign NA to these and the cos and sin versions:</span></span>
+<span id="cb52-7"><a href="#cb52-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 1) Identify invalid entries (out of [0, 360])</span></span>
+<span id="cb52-8"><a href="#cb52-8" aria-hidden="true" tabindex="-1"></a>idx_wind_invalid   <span class="ot">&lt;-</span> <span class="sc">!</span><span class="fu">is.na</span>(aval<span class="sc">$</span>Wind.Dir)        <span class="sc">&amp;</span> (aval<span class="sc">$</span>Wind.Dir <span class="sc">&lt;</span> <span class="dv">0</span> <span class="sc">|</span> aval<span class="sc">$</span>Wind.Dir <span class="sc">&gt;</span> <span class="dv">360</span>)</span>
+<span id="cb52-9"><a href="#cb52-9" aria-hidden="true" tabindex="-1"></a>idx_summit_invalid <span class="ot">&lt;-</span> <span class="sc">!</span><span class="fu">is.na</span>(aval<span class="sc">$</span>Summit.Wind.Dir) <span class="sc">&amp;</span> (aval<span class="sc">$</span>Summit.Wind.Dir <span class="sc">&lt;</span> <span class="dv">0</span> <span class="sc">|</span> aval<span class="sc">$</span>Summit.Wind.Dir <span class="sc">&gt;</span> <span class="dv">360</span>)</span>
+<span id="cb52-10"><a href="#cb52-10" aria-hidden="true" tabindex="-1"></a><span class="co"># sum(idx_wind_invalid) # 14</span></span>
+<span id="cb52-11"><a href="#cb52-11" aria-hidden="true" tabindex="-1"></a><span class="co"># sum(idx_summit_invalid) # 195</span></span>
+<span id="cb52-12"><a href="#cb52-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb52-13"><a href="#cb52-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 2) Set invalid directions to NA</span></span>
+<span id="cb52-14"><a href="#cb52-14" aria-hidden="true" tabindex="-1"></a>aval<span class="sc">$</span>Wind.Dir[idx_wind_invalid]               <span class="ot">&lt;-</span> <span class="cn">NA_real_</span></span>
+<span id="cb52-15"><a href="#cb52-15" aria-hidden="true" tabindex="-1"></a>aval<span class="sc">$</span>Summit.Wind.Dir[idx_summit_invalid]      <span class="ot">&lt;-</span> <span class="cn">NA_real_</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="foot-penetration" class="level3">
+<h3 class="anchored" data-anchor-id="foot-penetration">Foot Penetration</h3>
+<p>Foot penetration measures the depth in centimeters that an observer’s boot sinks into the snow surface. It reflects snow hardness and helps assess surface stability. Typical values range from a few centimeters in firm snow to over a meter in very soft conditions. In the dataset, negative values and extreme entries above 100 cm were judged implausible and recoded as missing for later imputation.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb53"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>Foot.Pen)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-20-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb54"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">which</span>(aval<span class="sc">$</span>Foot.Pen<span class="sc">&gt;</span><span class="dv">100</span>)) <span class="co"># only 3</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 3</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb56"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">which</span>(aval<span class="sc">$</span>Foot.Pen<span class="sc">&lt;</span><span class="dv">0</span>)) <span class="co"># only 4</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 4</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb58"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a>aval<span class="sc">$</span>Foot.Pen[<span class="fu">which</span>(aval<span class="sc">$</span>Foot.Pen<span class="sc">&lt;</span><span class="dv">0</span><span class="sc">|</span></span>
+<span id="cb58-2"><a href="#cb58-2" aria-hidden="true" tabindex="-1"></a>                      aval<span class="sc">$</span>Foot.Pen<span class="sc">&gt;</span><span class="dv">100</span>)] <span class="ot">&lt;-</span> <span class="cn">NA_real_</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="incline" class="level3">
+<h3 class="anchored" data-anchor-id="incline">Incline</h3>
+<p>Incline represents the slope angle at the observation site, recorded in degrees. Since slope angle is central to avalanche release, accurate measurement is critical. Values should range from 0° (flat) to 90° (vertical). In the dataset, negative values and outliers above 90° were considered invalid and recoded as missing for later imputation.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb59"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>Incline)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-21-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb60"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">which</span>(aval<span class="sc">$</span>Incline<span class="sc">&gt;</span><span class="dv">90</span>)) <span class="co"># only 4</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 4</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb62"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">which</span>(aval<span class="sc">$</span>Incline<span class="sc">&lt;</span><span class="dv">0</span>)) <span class="co"># only 3</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 3</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb64"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a>aval<span class="sc">$</span>Incline[<span class="fu">which</span>(aval<span class="sc">$</span>Incline<span class="sc">&lt;</span><span class="dv">0</span><span class="sc">|</span></span>
+<span id="cb64-2"><a href="#cb64-2" aria-hidden="true" tabindex="-1"></a>                     aval<span class="sc">$</span>Incline<span class="sc">&gt;</span><span class="dv">90</span>)] <span class="ot">&lt;-</span> <span class="cn">NA_real_</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="cloud" class="level3">
+<h3 class="anchored" data-anchor-id="cloud">Cloud</h3>
+<p>Cloud represents the observed cloud cover, recorded as a percentage from 0 (clear sky) to 100 (fully overcast). This variable provides important context for snowpack conditions, since cloud cover influences surface cooling, radiation balance, and melting. In the dataset, most values fell within the expected 0–100% range. A small number of impossible values (e.g., -1) were considered data entry errors and recoded as missing for later imputation.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb65"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>Cloud)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-22-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb66"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">which</span>(aval<span class="sc">$</span>Cloud <span class="sc">&gt;</span> <span class="dv">100</span>)) <span class="co"># only 1</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 1</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb68"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb68-1"><a href="#cb68-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">which</span>(aval<span class="sc">$</span>Cloud <span class="sc">&lt;</span> <span class="dv">0</span>))   <span class="co"># only 3</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 3</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb70"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a>aval<span class="sc">$</span>Cloud[<span class="fu">which</span>(aval<span class="sc">$</span>Cloud <span class="sc">&lt;</span> <span class="dv">0</span> <span class="sc">|</span></span>
+<span id="cb70-2"><a href="#cb70-2" aria-hidden="true" tabindex="-1"></a>                   aval<span class="sc">$</span>Cloud <span class="sc">&gt;</span> <span class="dv">100</span>)] <span class="ot">&lt;-</span> <span class="cn">NA_real_</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="maximum-temperature-grading" class="level3">
+<h3 class="anchored" data-anchor-id="maximum-temperature-grading">Maximum temperature grading</h3>
+<p>In avalanche datasets, Max.Temp.Grad = Maximum Temperature Gradient within the snowpack profile.When snow profiles are dug, forecasters often measure snow temperature at different depths (surface, mid-pack, base). They then compute the temperature gradient (°C per 10 cm) between layers. The maximum gradient across all measured layers is recorded as Max.Temp.Grad.</p>
+<p>In general, we would expect values between 0-5 to be very common, 5-10 to be less common, but plausible and values of greater than 10 to be very rare. Any value greater than 10 was assumed to be an error and was replaced with an NA value.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb71"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb71-1"><a href="#cb71-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>Max.Temp.Grad) <span class="co"># clear outliers/ noise, a value of 130 is physically impossible</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-23-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb72"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb72-1"><a href="#cb72-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">which</span>(aval<span class="sc">$</span>Max.Temp.Grad<span class="sc">&gt;</span><span class="dv">10</span>)) <span class="co"># 160 </span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 263</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb74"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb74-1"><a href="#cb74-1" aria-hidden="true" tabindex="-1"></a>aval<span class="sc">$</span>Max.Temp.Grad[<span class="fu">which</span>(aval<span class="sc">$</span>Max.Temp.Grad<span class="sc">&gt;</span><span class="dv">10</span>)] <span class="ot">&lt;-</span> <span class="cn">NA_real_</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="altitude" class="level3">
+<h3 class="anchored" data-anchor-id="altitude">Altitude</h3>
+<p>Altitude values greater than 1400 m or less than 0 m are physically impossible within the Scottish study area (highest peak 1345 m). These were treated as missing for later imputation.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb75"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb75-1"><a href="#cb75-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(aval<span class="sc">$</span>Alt[aval<span class="sc">$</span>Alt<span class="sc">&lt;</span><span class="dv">2000</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="data_prep_eda_files/figure-html/unnamed-chunk-24-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb76"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb76-1"><a href="#cb76-1" aria-hidden="true" tabindex="-1"></a><span class="co"># length(which(aval$Alt&gt;10000)) # only 2</span></span>
+<span id="cb76-2"><a href="#cb76-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb76-3"><a href="#cb76-3" aria-hidden="true" tabindex="-1"></a>aval<span class="sc">$</span>Alt[aval<span class="sc">$</span>Alt <span class="sc">&lt;</span> <span class="dv">0</span> <span class="sc">|</span> aval<span class="sc">$</span>Alt <span class="sc">&gt;</span> <span class="dv">1400</span>] <span class="ot">&lt;-</span> <span class="cn">NA_real_</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb77"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb77-1"><a href="#cb77-1" aria-hidden="true" tabindex="-1"></a><span class="co"># sum(is.na(aval$Alt)) # now 9 are missing</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>After replacing impossible values with NA, 9 observations had missing Altitude. Longitude and latitude were found to be constant within each OSgrid, i.e.&nbsp;each OSgrid corresponds to a unique coordinate pair. However, altitude was not unique within these coordinates, suggesting that the OSgrid represents an area grid of unknown size, while the longitude and latitude are specific sampling points within that grid.</p>
+<p>To impute missing Altitude values, an open-source elevation API will be queried at the recorded longitude and latitude of each observation. This approach assumes that altitude variation within the grid is limited, and that the elevation at the given coordinates is representative for the corresponding observation.</p>
+<p>When doing this, it was noticed that one of the altitudes was zero. Upon further investigation, the point was found to be in Loch Fyne (Sea Loch), and was thus assumed to be an erroroneous longitude and latitude.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb78"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 1) Helper: call Open-Elevation for a batch of lat/lon points ---</span></span>
+<span id="cb78-2"><a href="#cb78-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Expects a tibble/data.frame with columns: latitude, longitude</span></span>
+<span id="cb78-3"><a href="#cb78-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Returns: tibble(latitude, longitude, elev_m)</span></span>
+<span id="cb78-4"><a href="#cb78-4" aria-hidden="true" tabindex="-1"></a>oe_lookup_batch <span class="ot">&lt;-</span> <span class="cf">function</span>(points_df) {</span>
+<span id="cb78-5"><a href="#cb78-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">nrow</span>(points_df) <span class="sc">==</span> <span class="dv">0</span>) <span class="fu">return</span>(<span class="fu">tibble</span>(<span class="at">latitude =</span> <span class="fu">numeric</span>(), <span class="at">longitude =</span> <span class="fu">numeric</span>(), <span class="at">elev_m =</span> <span class="fu">numeric</span>()))</span>
+<span id="cb78-6"><a href="#cb78-6" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Build "lat,lon|lat,lon|..." string</span></span>
+<span id="cb78-7"><a href="#cb78-7" aria-hidden="true" tabindex="-1"></a>  locs <span class="ot">&lt;-</span> points_df <span class="sc">%&gt;%</span></span>
+<span id="cb78-8"><a href="#cb78-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">transmute</span>(<span class="at">pair =</span> <span class="fu">sprintf</span>(<span class="st">"%.6f,%.6f"</span>, latitude, longitude)) <span class="sc">%&gt;%</span></span>
+<span id="cb78-9"><a href="#cb78-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">pull</span>(pair) <span class="sc">%&gt;%</span></span>
+<span id="cb78-10"><a href="#cb78-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paste</span>(<span class="at">collapse =</span> <span class="st">"|"</span>)</span>
+<span id="cb78-11"><a href="#cb78-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-12"><a href="#cb78-12" aria-hidden="true" tabindex="-1"></a>  url <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">"https://api.open-elevation.com/api/v1/lookup?locations="</span>, <span class="fu">URLencode</span>(locs))</span>
+<span id="cb78-13"><a href="#cb78-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-14"><a href="#cb78-14" aria-hidden="true" tabindex="-1"></a>  resp <span class="ot">&lt;-</span> <span class="fu">request</span>(url) <span class="sc">|&gt;</span> <span class="fu">req_timeout</span>(<span class="dv">30</span>) <span class="sc">|&gt;</span> <span class="fu">req_perform</span>()</span>
+<span id="cb78-15"><a href="#cb78-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-16"><a href="#cb78-16" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">resp_status</span>(resp) <span class="sc">!=</span> <span class="dv">200</span>) {</span>
+<span id="cb78-17"><a href="#cb78-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">warning</span>(<span class="st">"Open-Elevation request failed with status: "</span>, <span class="fu">resp_status</span>(resp))</span>
+<span id="cb78-18"><a href="#cb78-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span>(<span class="fu">tibble</span>(<span class="at">latitude =</span> <span class="fu">numeric</span>(), <span class="at">longitude =</span> <span class="fu">numeric</span>(), <span class="at">elev_m =</span> <span class="fu">numeric</span>()))</span>
+<span id="cb78-19"><a href="#cb78-19" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb78-20"><a href="#cb78-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-21"><a href="#cb78-21" aria-hidden="true" tabindex="-1"></a>  dat <span class="ot">&lt;-</span> <span class="fu">resp_body_json</span>(resp, <span class="at">simplifyVector =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb78-22"><a href="#cb78-22" aria-hidden="true" tabindex="-1"></a>  res <span class="ot">&lt;-</span> <span class="fu">as_tibble</span>(dat<span class="sc">$</span>results)</span>
+<span id="cb78-23"><a href="#cb78-23" aria-hidden="true" tabindex="-1"></a>  <span class="co"># API returns 'elevation' (meters), 'latitude', 'longitude'</span></span>
+<span id="cb78-24"><a href="#cb78-24" aria-hidden="true" tabindex="-1"></a>  res <span class="sc">%&gt;%</span></span>
+<span id="cb78-25"><a href="#cb78-25" aria-hidden="true" tabindex="-1"></a>    <span class="fu">transmute</span>(</span>
+<span id="cb78-26"><a href="#cb78-26" aria-hidden="true" tabindex="-1"></a>      <span class="at">latitude  =</span> <span class="fu">as.numeric</span>(latitude),</span>
+<span id="cb78-27"><a href="#cb78-27" aria-hidden="true" tabindex="-1"></a>      <span class="at">longitude =</span> <span class="fu">as.numeric</span>(longitude),</span>
+<span id="cb78-28"><a href="#cb78-28" aria-hidden="true" tabindex="-1"></a>      <span class="at">elev_m    =</span> <span class="fu">as.numeric</span>(elevation)</span>
+<span id="cb78-29"><a href="#cb78-29" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb78-30"><a href="#cb78-30" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb78-31"><a href="#cb78-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-32"><a href="#cb78-32" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 2) Wrapper: batch over many points, with simple rate limiting &amp; safety ---</span></span>
+<span id="cb78-33"><a href="#cb78-33" aria-hidden="true" tabindex="-1"></a>oe_lookup <span class="ot">&lt;-</span> <span class="cf">function</span>(points_df, <span class="at">batch_size =</span> <span class="dv">80</span>, <span class="at">sleep_secs =</span> <span class="dv">1</span>) {</span>
+<span id="cb78-34"><a href="#cb78-34" aria-hidden="true" tabindex="-1"></a>  <span class="co"># round coords to reduce accidental duplicates/float precision issues</span></span>
+<span id="cb78-35"><a href="#cb78-35" aria-hidden="true" tabindex="-1"></a>  pts <span class="ot">&lt;-</span> points_df <span class="sc">%&gt;%</span></span>
+<span id="cb78-36"><a href="#cb78-36" aria-hidden="true" tabindex="-1"></a>    <span class="fu">transmute</span>(</span>
+<span id="cb78-37"><a href="#cb78-37" aria-hidden="true" tabindex="-1"></a>      <span class="at">latitude  =</span> <span class="fu">round</span>(<span class="fu">as.numeric</span>(latitude), <span class="dv">6</span>),</span>
+<span id="cb78-38"><a href="#cb78-38" aria-hidden="true" tabindex="-1"></a>      <span class="at">longitude =</span> <span class="fu">round</span>(<span class="fu">as.numeric</span>(longitude), <span class="dv">6</span>)</span>
+<span id="cb78-39"><a href="#cb78-39" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">%&gt;%</span></span>
+<span id="cb78-40"><a href="#cb78-40" aria-hidden="true" tabindex="-1"></a>    <span class="fu">distinct</span>()</span>
+<span id="cb78-41"><a href="#cb78-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-42"><a href="#cb78-42" aria-hidden="true" tabindex="-1"></a>  batches <span class="ot">&lt;-</span> <span class="fu">split</span>(pts, <span class="fu">ceiling</span>(<span class="fu">seq_len</span>(<span class="fu">nrow</span>(pts)) <span class="sc">/</span> batch_size))</span>
+<span id="cb78-43"><a href="#cb78-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-44"><a href="#cb78-44" aria-hidden="true" tabindex="-1"></a>  safe_batch <span class="ot">&lt;-</span> <span class="fu">safely</span>(oe_lookup_batch, <span class="at">otherwise =</span> <span class="fu">tibble</span>(<span class="at">latitude=</span><span class="fu">numeric</span>(), <span class="at">longitude=</span><span class="fu">numeric</span>(), <span class="at">elev_m=</span><span class="fu">numeric</span>()))</span>
+<span id="cb78-45"><a href="#cb78-45" aria-hidden="true" tabindex="-1"></a>  results <span class="ot">&lt;-</span> <span class="fu">map</span>(batches, <span class="cf">function</span>(b) {</span>
+<span id="cb78-46"><a href="#cb78-46" aria-hidden="true" tabindex="-1"></a>    out <span class="ot">&lt;-</span> <span class="fu">safe_batch</span>(b)</span>
+<span id="cb78-47"><a href="#cb78-47" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Sys.sleep</span>(sleep_secs)</span>
+<span id="cb78-48"><a href="#cb78-48" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(out<span class="sc">$</span>error)) <span class="fu">warning</span>(<span class="st">"Batch failed: "</span>, out<span class="sc">$</span>error)</span>
+<span id="cb78-49"><a href="#cb78-49" aria-hidden="true" tabindex="-1"></a>    out<span class="sc">$</span>result</span>
+<span id="cb78-50"><a href="#cb78-50" aria-hidden="true" tabindex="-1"></a>  })</span>
+<span id="cb78-51"><a href="#cb78-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-52"><a href="#cb78-52" aria-hidden="true" tabindex="-1"></a>  <span class="fu">bind_rows</span>(results)</span>
+<span id="cb78-53"><a href="#cb78-53" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb78-54"><a href="#cb78-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-55"><a href="#cb78-55" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 3) Apply to your data: only rows with missing Alt ---</span></span>
+<span id="cb78-56"><a href="#cb78-56" aria-hidden="true" tabindex="-1"></a><span class="co"># Assumes your data frame is named `aval` and has columns Alt, latitude, longitude</span></span>
+<span id="cb78-57"><a href="#cb78-57" aria-hidden="true" tabindex="-1"></a>to_fill <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span></span>
+<span id="cb78-58"><a href="#cb78-58" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="fu">is.na</span>(Alt)) <span class="sc">%&gt;%</span></span>
+<span id="cb78-59"><a href="#cb78-59" aria-hidden="true" tabindex="-1"></a>  <span class="fu">transmute</span>(<span class="at">latitude =</span> latitude, <span class="at">longitude =</span> longitude)</span>
+<span id="cb78-60"><a href="#cb78-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-61"><a href="#cb78-61" aria-hidden="true" tabindex="-1"></a>elev_tbl <span class="ot">&lt;-</span> <span class="fu">oe_lookup</span>(to_fill, <span class="at">batch_size =</span> <span class="dv">80</span>, <span class="at">sleep_secs =</span> <span class="dv">1</span>)</span>
+<span id="cb78-62"><a href="#cb78-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-63"><a href="#cb78-63" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 4) Join back and fill Alt where missing ---</span></span>
+<span id="cb78-64"><a href="#cb78-64" aria-hidden="true" tabindex="-1"></a><span class="co"># 1) Build a lookup key on the API results (rounded to match request precision)</span></span>
+<span id="cb78-65"><a href="#cb78-65" aria-hidden="true" tabindex="-1"></a>elev_lu <span class="ot">&lt;-</span> elev_tbl <span class="sc">%&gt;%</span></span>
+<span id="cb78-66"><a href="#cb78-66" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">key =</span> <span class="fu">paste0</span>(<span class="fu">round</span>(latitude, <span class="dv">6</span>), <span class="st">"_"</span>, <span class="fu">round</span>(longitude, <span class="dv">6</span>))) <span class="sc">%&gt;%</span></span>
+<span id="cb78-67"><a href="#cb78-67" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(key, elev_m)</span>
+<span id="cb78-68"><a href="#cb78-68" aria-hidden="true" tabindex="-1"></a><span class="co"># one of the values is zero altitude: this is in the ocean (see map)</span></span>
+<span id="cb78-69"><a href="#cb78-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-70"><a href="#cb78-70" aria-hidden="true" tabindex="-1"></a><span class="co"># Coordinates whose elevation came back as exactly 0</span></span>
+<span id="cb78-71"><a href="#cb78-71" aria-hidden="true" tabindex="-1"></a>zero_pts <span class="ot">&lt;-</span> elev_tbl <span class="sc">%&gt;%</span></span>
+<span id="cb78-72"><a href="#cb78-72" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(elev_m), elev_m <span class="sc">==</span> <span class="dv">0</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb78-73"><a href="#cb78-73" aria-hidden="true" tabindex="-1"></a>  <span class="fu">transmute</span>(<span class="at">x =</span> <span class="fu">round</span>(longitude, <span class="dv">6</span>), <span class="at">y =</span> <span class="fu">round</span>(latitude, <span class="dv">6</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb78-74"><a href="#cb78-74" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Replace this longitude and latitude with the average longitude and latitude in the area.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb79"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb79-1"><a href="#cb79-1" aria-hidden="true" tabindex="-1"></a><span class="co"># fixing the incorrect long and lat value</span></span>
+<span id="cb79-2"><a href="#cb79-2" aria-hidden="true" tabindex="-1"></a>aval <span class="sc">%&gt;%</span></span>
+<span id="cb79-3"><a href="#cb79-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="fu">round</span>(longitude, <span class="dv">6</span>) <span class="sc">==</span> zero_pts<span class="sc">$</span>x,</span>
+<span id="cb79-4"><a href="#cb79-4" aria-hidden="true" tabindex="-1"></a>         <span class="fu">round</span>(latitude, <span class="dv">6</span>) <span class="sc">==</span> zero_pts<span class="sc">$</span>y)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 1 × 47
+  Date       OSgrid Area  longitude latitude   Alt Aspect Incline Location Obs  
+  &lt;date&gt;     &lt;chr&gt;  &lt;fct&gt;     &lt;dbl&gt;    &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;    &lt;fct&gt;
+1 2014-02-16 NN077… Crea…     -5.10     56.2    NA     90      25 Base of… TR/SR
+# ℹ 37 more variables: FAH &lt;chr&gt;, Air.Temp &lt;dbl&gt;, Wind.Dir &lt;dbl&gt;,
+#   Wind.Speed &lt;dbl&gt;, Cloud &lt;dbl&gt;, Precip.Code &lt;chr&gt;, Drift &lt;fct&gt;,
+#   Total.Snow.Depth &lt;dbl&gt;, Foot.Pen &lt;dbl&gt;, Ski.Pen &lt;dbl&gt;, Rain.at.900 &lt;fct&gt;,
+#   Summit.Air.Temp &lt;dbl&gt;, Summit.Wind.Dir &lt;dbl&gt;, Summit.Wind.Speed &lt;int&gt;,
+#   Max.Temp.Grad &lt;dbl&gt;, Max.Hardness.Grad &lt;int&gt;, No.Settle &lt;int&gt;,
+#   Snow.Index &lt;int&gt;, Insolation &lt;dbl&gt;, Crystals &lt;int&gt;, Wetness &lt;int&gt;,
+#   AV.Cat &lt;int&gt;, Snow.Temp &lt;dbl&gt;, DateTime &lt;dttm&gt;, year &lt;dbl&gt;, month &lt;dbl&gt;, …</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb81"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb81-1"><a href="#cb81-1" aria-hidden="true" tabindex="-1"></a><span class="co"># it's the only observation in this grid</span></span>
+<span id="cb81-2"><a href="#cb81-2" aria-hidden="true" tabindex="-1"></a>aval <span class="sc">%&gt;%</span> </span>
+<span id="cb81-3"><a href="#cb81-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(OSgrid <span class="sc">==</span> <span class="st">"NN077044"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 1 × 47
+  Date       OSgrid Area  longitude latitude   Alt Aspect Incline Location Obs  
+  &lt;date&gt;     &lt;chr&gt;  &lt;fct&gt;     &lt;dbl&gt;    &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;    &lt;fct&gt;
+1 2014-02-16 NN077… Crea…     -5.10     56.2    NA     90      25 Base of… TR/SR
+# ℹ 37 more variables: FAH &lt;chr&gt;, Air.Temp &lt;dbl&gt;, Wind.Dir &lt;dbl&gt;,
+#   Wind.Speed &lt;dbl&gt;, Cloud &lt;dbl&gt;, Precip.Code &lt;chr&gt;, Drift &lt;fct&gt;,
+#   Total.Snow.Depth &lt;dbl&gt;, Foot.Pen &lt;dbl&gt;, Ski.Pen &lt;dbl&gt;, Rain.at.900 &lt;fct&gt;,
+#   Summit.Air.Temp &lt;dbl&gt;, Summit.Wind.Dir &lt;dbl&gt;, Summit.Wind.Speed &lt;int&gt;,
+#   Max.Temp.Grad &lt;dbl&gt;, Max.Hardness.Grad &lt;int&gt;, No.Settle &lt;int&gt;,
+#   Snow.Index &lt;int&gt;, Insolation &lt;dbl&gt;, Crystals &lt;int&gt;, Wetness &lt;int&gt;,
+#   AV.Cat &lt;int&gt;, Snow.Temp &lt;dbl&gt;, DateTime &lt;dttm&gt;, year &lt;dbl&gt;, month &lt;dbl&gt;, …</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb83"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb83-1"><a href="#cb83-1" aria-hidden="true" tabindex="-1"></a><span class="co"># average long and lat in the area:</span></span>
+<span id="cb83-2"><a href="#cb83-2" aria-hidden="true" tabindex="-1"></a>mean_coord <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span></span>
+<span id="cb83-3"><a href="#cb83-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(Area <span class="sc">==</span> <span class="st">"Creag Meagaidh"</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb83-4"><a href="#cb83-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb83-5"><a href="#cb83-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">mean_lon =</span> <span class="fu">mean</span>(longitude, <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb83-6"><a href="#cb83-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">mean_lat =</span> <span class="fu">mean</span>(latitude, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb83-7"><a href="#cb83-7" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb83-8"><a href="#cb83-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb83-9"><a href="#cb83-9" aria-hidden="true" tabindex="-1"></a><span class="co"># known bad coordinates (round to avoid float mismatch)</span></span>
+<span id="cb83-10"><a href="#cb83-10" aria-hidden="true" tabindex="-1"></a>bad_lon <span class="ot">&lt;-</span> <span class="fu">round</span>(<span class="fu">as.numeric</span>(zero_pts<span class="sc">$</span>x), <span class="dv">6</span>)</span>
+<span id="cb83-11"><a href="#cb83-11" aria-hidden="true" tabindex="-1"></a>bad_lat <span class="ot">&lt;-</span> <span class="fu">round</span>(<span class="fu">as.numeric</span>(zero_pts<span class="sc">$</span>y), <span class="dv">6</span>)</span>
+<span id="cb83-12"><a href="#cb83-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb83-13"><a href="#cb83-13" aria-hidden="true" tabindex="-1"></a><span class="co"># replacement mean values</span></span>
+<span id="cb83-14"><a href="#cb83-14" aria-hidden="true" tabindex="-1"></a>mean_lon <span class="ot">&lt;-</span> mean_coord<span class="sc">$</span>mean_lon</span>
+<span id="cb83-15"><a href="#cb83-15" aria-hidden="true" tabindex="-1"></a>mean_lat <span class="ot">&lt;-</span> mean_coord<span class="sc">$</span>mean_lat</span>
+<span id="cb83-16"><a href="#cb83-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb83-17"><a href="#cb83-17" aria-hidden="true" tabindex="-1"></a><span class="co"># replace in aval</span></span>
+<span id="cb83-18"><a href="#cb83-18" aria-hidden="true" tabindex="-1"></a>aval <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span></span>
+<span id="cb83-19"><a href="#cb83-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb83-20"><a href="#cb83-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">longitude =</span> <span class="fu">if_else</span>(<span class="fu">round</span>(longitude, <span class="dv">6</span>) <span class="sc">==</span> bad_lon <span class="sc">&amp;</span> <span class="fu">round</span>(latitude, <span class="dv">6</span>) <span class="sc">==</span> bad_lat,</span>
+<span id="cb83-21"><a href="#cb83-21" aria-hidden="true" tabindex="-1"></a>                        mean_lon, longitude),</span>
+<span id="cb83-22"><a href="#cb83-22" aria-hidden="true" tabindex="-1"></a>    <span class="at">latitude  =</span> <span class="fu">if_else</span>(<span class="fu">round</span>(longitude, <span class="dv">6</span>) <span class="sc">==</span> bad_lon <span class="sc">&amp;</span> <span class="fu">round</span>(latitude, <span class="dv">6</span>) <span class="sc">==</span> bad_lat,</span>
+<span id="cb83-23"><a href="#cb83-23" aria-hidden="true" tabindex="-1"></a>                        mean_lat, latitude)</span>
+<span id="cb83-24"><a href="#cb83-24" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb84"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb84-1"><a href="#cb84-1" aria-hidden="true" tabindex="-1"></a>to_fill <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span></span>
+<span id="cb84-2"><a href="#cb84-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="fu">is.na</span>(Alt)) <span class="sc">%&gt;%</span></span>
+<span id="cb84-3"><a href="#cb84-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">transmute</span>(<span class="at">latitude =</span> latitude, <span class="at">longitude =</span> longitude)</span>
+<span id="cb84-4"><a href="#cb84-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb84-5"><a href="#cb84-5" aria-hidden="true" tabindex="-1"></a>elev_tbl <span class="ot">&lt;-</span> <span class="fu">oe_lookup</span>(to_fill, <span class="at">batch_size =</span> <span class="dv">80</span>, <span class="at">sleep_secs =</span> <span class="dv">1</span>)</span>
+<span id="cb84-6"><a href="#cb84-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb84-7"><a href="#cb84-7" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 4) Join back and fill Alt where missing ---</span></span>
+<span id="cb84-8"><a href="#cb84-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 1) Build a lookup key on the API results (rounded to match request precision)</span></span>
+<span id="cb84-9"><a href="#cb84-9" aria-hidden="true" tabindex="-1"></a>elev_lu <span class="ot">&lt;-</span> elev_tbl <span class="sc">%&gt;%</span></span>
+<span id="cb84-10"><a href="#cb84-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">key =</span> <span class="fu">paste0</span>(<span class="fu">round</span>(latitude, <span class="dv">6</span>), <span class="st">"_"</span>, <span class="fu">round</span>(longitude, <span class="dv">6</span>))) <span class="sc">%&gt;%</span></span>
+<span id="cb84-11"><a href="#cb84-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(key, elev_m)</span>
+<span id="cb84-12"><a href="#cb84-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb84-13"><a href="#cb84-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 2) Build the same key for your aval rows</span></span>
+<span id="cb84-14"><a href="#cb84-14" aria-hidden="true" tabindex="-1"></a>aval_key <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="fu">round</span>(aval<span class="sc">$</span>latitude, <span class="dv">6</span>), <span class="st">"_"</span>, <span class="fu">round</span>(aval<span class="sc">$</span>longitude, <span class="dv">6</span>))</span>
+<span id="cb84-15"><a href="#cb84-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb84-16"><a href="#cb84-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 3) Match each aval row to the API elevation</span></span>
+<span id="cb84-17"><a href="#cb84-17" aria-hidden="true" tabindex="-1"></a>match_idx <span class="ot">&lt;-</span> <span class="fu">match</span>(aval_key, elev_lu<span class="sc">$</span>key)</span>
+<span id="cb84-18"><a href="#cb84-18" aria-hidden="true" tabindex="-1"></a>alt_from_api <span class="ot">&lt;-</span> elev_lu<span class="sc">$</span>elev_m[match_idx]   <span class="co"># will be NA where no API result</span></span>
+<span id="cb84-19"><a href="#cb84-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb84-20"><a href="#cb84-20" aria-hidden="true" tabindex="-1"></a><span class="co"># 4) Replace Alt in place ONLY where it's missing and we have a lookup value</span></span>
+<span id="cb84-21"><a href="#cb84-21" aria-hidden="true" tabindex="-1"></a>fill_idx <span class="ot">&lt;-</span> <span class="fu">is.na</span>(aval<span class="sc">$</span>Alt) <span class="sc">&amp;</span> <span class="sc">!</span><span class="fu">is.na</span>(alt_from_api)</span>
+<span id="cb84-22"><a href="#cb84-22" aria-hidden="true" tabindex="-1"></a>aval<span class="sc">$</span>Alt[fill_idx] <span class="ot">&lt;-</span> alt_from_api[fill_idx]</span>
+<span id="cb84-23"><a href="#cb84-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb84-24"><a href="#cb84-24" aria-hidden="true" tabindex="-1"></a><span class="co"># 5) Quick check</span></span>
+<span id="cb84-25"><a href="#cb84-25" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Alt missing before fill:"</span>, <span class="fu">sum</span>(<span class="fu">is.na</span>(aval<span class="sc">$</span>Alt)) <span class="sc">+</span> <span class="fu">sum</span>(fill_idx <span class="sc">==</span> <span class="cn">TRUE</span>), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Alt missing before fill: 9 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb86"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Alt missing after fill :"</span>, <span class="fu">sum</span>(<span class="fu">is.na</span>(aval<span class="sc">$</span>Alt)), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Alt missing after fill : 0 </code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="encode-angles-as-circular" class="level1">
+<h1>Encode angles as circular</h1>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb88"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb88-1"><a href="#cb88-1" aria-hidden="true" tabindex="-1"></a><span class="co"># After finishing all angle cleaning:</span></span>
+<span id="cb88-2"><a href="#cb88-2" aria-hidden="true" tabindex="-1"></a>aval <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span></span>
+<span id="cb88-3"><a href="#cb88-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb88-4"><a href="#cb88-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">Wind.Dir_sin        =</span> <span class="fu">if_else</span>(<span class="fu">is.na</span>(Wind.Dir), <span class="cn">NA_real_</span>, <span class="fu">sin</span>(pi <span class="sc">*</span> Wind.Dir<span class="sc">/</span><span class="dv">180</span>)),</span>
+<span id="cb88-5"><a href="#cb88-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">Wind.Dir_cos        =</span> <span class="fu">if_else</span>(<span class="fu">is.na</span>(Wind.Dir), <span class="cn">NA_real_</span>, <span class="fu">cos</span>(pi <span class="sc">*</span> Wind.Dir<span class="sc">/</span><span class="dv">180</span>)),</span>
+<span id="cb88-6"><a href="#cb88-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">Summit.Wind.Dir_sin =</span> <span class="fu">if_else</span>(<span class="fu">is.na</span>(Summit.Wind.Dir), <span class="cn">NA_real_</span>, <span class="fu">sin</span>(pi <span class="sc">*</span> Summit.Wind.Dir<span class="sc">/</span><span class="dv">180</span>)),</span>
+<span id="cb88-7"><a href="#cb88-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">Summit.Wind.Dir_cos =</span> <span class="fu">if_else</span>(<span class="fu">is.na</span>(Summit.Wind.Dir), <span class="cn">NA_real_</span>, <span class="fu">cos</span>(pi <span class="sc">*</span> Summit.Wind.Dir<span class="sc">/</span><span class="dv">180</span>)),</span>
+<span id="cb88-8"><a href="#cb88-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">Aspect_sin          =</span> <span class="fu">if_else</span>(<span class="fu">is.na</span>(Aspect), <span class="cn">NA_real_</span>, <span class="fu">sin</span>(pi <span class="sc">*</span> Aspect<span class="sc">/</span><span class="dv">180</span>)),</span>
+<span id="cb88-9"><a href="#cb88-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">Aspect_cos          =</span> <span class="fu">if_else</span>(<span class="fu">is.na</span>(Aspect), <span class="cn">NA_real_</span>, <span class="fu">cos</span>(pi <span class="sc">*</span> Aspect<span class="sc">/</span><span class="dv">180</span>))</span>
+<span id="cb88-10"><a href="#cb88-10" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="train--test--val-split" class="level1">
+<h1>Train- Test- Val split</h1>
+<p>Note that imputation will be done after this as we will be using bagged trees and want to avoid data leakage. Also note that the split is not random, since this is time series data. Thus the first 70% of the data is the training set.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb89"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb89-1"><a href="#cb89-1" aria-hidden="true" tabindex="-1"></a><span class="co"># STEP 1 — Target + time-based splits ---------------------------------------</span></span>
+<span id="cb89-2"><a href="#cb89-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">7</span>)</span>
+<span id="cb89-3"><a href="#cb89-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb89-4"><a href="#cb89-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 0) Ensure the columns we need exist &amp; are the right type</span></span>
+<span id="cb89-5"><a href="#cb89-5" aria-hidden="true" tabindex="-1"></a><span class="fu">stopifnot</span>(<span class="fu">all</span>(<span class="fu">c</span>(<span class="st">"Date"</span>) <span class="sc">%in%</span> <span class="fu">names</span>(aval)))</span>
+<span id="cb89-6"><a href="#cb89-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb89-7"><a href="#cb89-7" aria-hidden="true" tabindex="-1"></a><span class="co"># If FAH_ord doesn't exist or isn't correctly ordered, (re)create it from FAH</span></span>
+<span id="cb89-8"><a href="#cb89-8" aria-hidden="true" tabindex="-1"></a>target_levels <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"Low"</span>,<span class="st">"Moderate"</span>,<span class="st">"Considerable -"</span>,<span class="st">"Considerable +"</span>,<span class="st">"High"</span>)</span>
+<span id="cb89-9"><a href="#cb89-9" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span>(<span class="st">"FAH_ord"</span> <span class="sc">%in%</span> <span class="fu">names</span>(aval)) <span class="sc">||</span></span>
+<span id="cb89-10"><a href="#cb89-10" aria-hidden="true" tabindex="-1"></a>    <span class="sc">!</span><span class="fu">is.ordered</span>(aval<span class="sc">$</span>FAH_ord) <span class="sc">||</span></span>
+<span id="cb89-11"><a href="#cb89-11" aria-hidden="true" tabindex="-1"></a>    <span class="sc">!</span><span class="fu">identical</span>(<span class="fu">levels</span>(aval<span class="sc">$</span>FAH_ord), target_levels)) {</span>
+<span id="cb89-12"><a href="#cb89-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">stopifnot</span>(<span class="st">"FAH"</span> <span class="sc">%in%</span> <span class="fu">names</span>(aval))</span>
+<span id="cb89-13"><a href="#cb89-13" aria-hidden="true" tabindex="-1"></a>  aval <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span></span>
+<span id="cb89-14"><a href="#cb89-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">FAH_ord =</span> <span class="fu">factor</span>(FAH, <span class="at">levels =</span> target_levels, <span class="at">ordered =</span> <span class="cn">TRUE</span>))</span>
+<span id="cb89-15"><a href="#cb89-15" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb89-16"><a href="#cb89-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb89-17"><a href="#cb89-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Parse Date robustly if needed</span></span>
+<span id="cb89-18"><a href="#cb89-18" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">inherits</span>(aval<span class="sc">$</span>Date, <span class="st">"Date"</span>)) {</span>
+<span id="cb89-19"><a href="#cb89-19" aria-hidden="true" tabindex="-1"></a>  aval <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span></span>
+<span id="cb89-20"><a href="#cb89-20" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">Date =</span> <span class="fu">as.Date</span>(<span class="fu">parse_date_time</span>(</span>
+<span id="cb89-21"><a href="#cb89-21" aria-hidden="true" tabindex="-1"></a>      Date, <span class="at">orders =</span> <span class="fu">c</span>(<span class="st">"ymd HMS"</span>,<span class="st">"ymd HM"</span>,<span class="st">"ymd"</span>,<span class="st">"dmy HMS"</span>,<span class="st">"dmy HM"</span>,<span class="st">"dmy"</span>)</span>
+<span id="cb89-22"><a href="#cb89-22" aria-hidden="true" tabindex="-1"></a>    )))</span>
+<span id="cb89-23"><a href="#cb89-23" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb89-24"><a href="#cb89-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb89-25"><a href="#cb89-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Drop rows with missing target or Date (NNs can't train on NA targets)</span></span>
+<span id="cb89-26"><a href="#cb89-26" aria-hidden="true" tabindex="-1"></a>aval <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span> <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(Date), <span class="sc">!</span><span class="fu">is.na</span>(FAH_ord))</span>
+<span id="cb89-27"><a href="#cb89-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb89-28"><a href="#cb89-28" aria-hidden="true" tabindex="-1"></a><span class="co"># 1) Create time-based splits: 70% train, 15% val, 15% test by calendar time</span></span>
+<span id="cb89-29"><a href="#cb89-29" aria-hidden="true" tabindex="-1"></a>cut1 <span class="ot">&lt;-</span> <span class="fu">quantile</span>(aval<span class="sc">$</span>Date, <span class="at">probs =</span> <span class="fl">0.70</span>, <span class="at">na.rm =</span> <span class="cn">TRUE</span>, <span class="at">type =</span> <span class="dv">1</span>)</span>
+<span id="cb89-30"><a href="#cb89-30" aria-hidden="true" tabindex="-1"></a>cut2 <span class="ot">&lt;-</span> <span class="fu">quantile</span>(aval<span class="sc">$</span>Date, <span class="at">probs =</span> <span class="fl">0.85</span>, <span class="at">na.rm =</span> <span class="cn">TRUE</span>, <span class="at">type =</span> <span class="dv">1</span>)</span>
+<span id="cb89-31"><a href="#cb89-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb89-32"><a href="#cb89-32" aria-hidden="true" tabindex="-1"></a>train <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span> <span class="fu">filter</span>(Date <span class="sc">&lt;=</span> cut1)</span>
+<span id="cb89-33"><a href="#cb89-33" aria-hidden="true" tabindex="-1"></a>val   <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span> <span class="fu">filter</span>(Date <span class="sc">&gt;</span>  cut1 <span class="sc">&amp;</span> Date <span class="sc">&lt;=</span> cut2)</span>
+<span id="cb89-34"><a href="#cb89-34" aria-hidden="true" tabindex="-1"></a>test  <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span> <span class="fu">filter</span>(Date <span class="sc">&gt;</span>  cut2)</span>
+<span id="cb89-35"><a href="#cb89-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb89-36"><a href="#cb89-36" aria-hidden="true" tabindex="-1"></a><span class="co"># Sanity checks: no overlap &amp; correct ordering</span></span>
+<span id="cb89-37"><a href="#cb89-37" aria-hidden="true" tabindex="-1"></a><span class="fu">stopifnot</span>(<span class="fu">max</span>(train<span class="sc">$</span>Date) <span class="sc">&lt;</span> <span class="fu">min</span>(val<span class="sc">$</span>Date), <span class="fu">max</span>(val<span class="sc">$</span>Date) <span class="sc">&lt;</span> <span class="fu">min</span>(test<span class="sc">$</span>Date))</span>
+<span id="cb89-38"><a href="#cb89-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb89-39"><a href="#cb89-39" aria-hidden="true" tabindex="-1"></a><span class="co"># 2) Quick class balance check (important for NN)</span></span>
+<span id="cb89-40"><a href="#cb89-40" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Train date range: "</span>, <span class="fu">min</span>(train<span class="sc">$</span>Date), <span class="st">"to"</span>, <span class="fu">max</span>(train<span class="sc">$</span>Date), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Train date range:  14595 to 18668 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb91"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb91-1"><a href="#cb91-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Val   date range: "</span>, <span class="fu">min</span>(val<span class="sc">$</span>Date),   <span class="st">"to"</span>, <span class="fu">max</span>(val<span class="sc">$</span>Date),   <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Val   date range:  18669 to 19405 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb93"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb93-1"><a href="#cb93-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Test  date range: "</span>, <span class="fu">min</span>(test<span class="sc">$</span>Date),  <span class="st">"to"</span>, <span class="fu">max</span>(test<span class="sc">$</span>Date),  <span class="st">"</span><span class="sc">\n\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Test  date range:  19406 to 20164 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb95"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb95-1"><a href="#cb95-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Class counts (train):</span><span class="sc">\n</span><span class="st">"</span>); <span class="fu">print</span>(<span class="fu">table</span>(train<span class="sc">$</span>FAH_ord))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Class counts (train):</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+           Low       Moderate Considerable - Considerable +           High 
+          1628           2293           2200            819            456 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb98"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb98-1"><a href="#cb98-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Class proportions (train):</span><span class="sc">\n</span><span class="st">"</span>); <span class="fu">print</span>(<span class="fu">round</span>(<span class="fu">prop.table</span>(<span class="fu">table</span>(train<span class="sc">$</span>FAH_ord)), <span class="dv">3</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Class proportions (train):</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+           Low       Moderate Considerable - Considerable +           High 
+         0.220          0.310          0.297          0.111          0.062 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb101"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb101-1"><a href="#cb101-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Class counts (val):</span><span class="sc">\n</span><span class="st">"</span>); <span class="fu">print</span>(<span class="fu">table</span>(val<span class="sc">$</span>FAH_ord))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Class counts (val):</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+           Low       Moderate Considerable - Considerable +           High 
+           843            483            198             57              3 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb104"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb104-1"><a href="#cb104-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Class counts (test):</span><span class="sc">\n</span><span class="st">"</span>); <span class="fu">print</span>(<span class="fu">table</span>(test<span class="sc">$</span>FAH_ord))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Class counts (test):</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+           Low       Moderate Considerable - Considerable +           High 
+           960            461            100             57              0 </code></pre>
+</div>
+</div>
+<p>Note the imbalance in FAH_ord. The test set has no High cases. But, the training set has enough data to train on to be able to identify High risk cases.</p>
+</section>
+<section id="pre-processing-data" class="level1">
+<h1>Pre-processing data</h1>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb107"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb107-1"><a href="#cb107-1" aria-hidden="true" tabindex="-1"></a><span class="co"># STEP 2 — NN-ready preprocessing with recipes --------------------------------</span></span>
+<span id="cb107-2"><a href="#cb107-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb107-3"><a href="#cb107-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 1) Choose columns to DROP (IDs, raw angles, dates, free text) ---------------</span></span>
+<span id="cb107-4"><a href="#cb107-4" aria-hidden="true" tabindex="-1"></a>drop_cols <span class="ot">&lt;-</span> <span class="fu">intersect</span>(</span>
+<span id="cb107-5"><a href="#cb107-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">c</span>(</span>
+<span id="cb107-6"><a href="#cb107-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"FAH"</span>,                <span class="co"># raw target (we'll use FAH_ord)</span></span>
+<span id="cb107-7"><a href="#cb107-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Date"</span>, <span class="st">"DateTime"</span>,   <span class="co"># time stamps (we keep year/month/doy/season)</span></span>
+<span id="cb107-8"><a href="#cb107-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Wind.Dir"</span>, <span class="st">"Summit.Wind.Dir"</span>, <span class="st">"Aspect"</span>,   <span class="co"># raw angles (keep sin/cos)</span></span>
+<span id="cb107-9"><a href="#cb107-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">"OSgrid"</span>,             <span class="co"># grid ID (too high-cardinality for one-hot)</span></span>
+<span id="cb107-10"><a href="#cb107-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Location"</span>            <span class="co"># often messy/free-text; drop for NN baseline</span></span>
+<span id="cb107-11"><a href="#cb107-11" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb107-12"><a href="#cb107-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">names</span>(train)</span>
+<span id="cb107-13"><a href="#cb107-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb107-14"><a href="#cb107-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb107-15"><a href="#cb107-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 2) Identify informative-missing flags so we can avoid scaling them ----------</span></span>
+<span id="cb107-16"><a href="#cb107-16" aria-hidden="true" tabindex="-1"></a>flag_prefixes <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb107-17"><a href="#cb107-17" aria-hidden="true" tabindex="-1"></a>  <span class="st">"av_cat_missing"</span>, <span class="st">"ski_pen_missing"</span>, <span class="st">"crystals_missing"</span>,</span>
+<span id="cb107-18"><a href="#cb107-18" aria-hidden="true" tabindex="-1"></a>  <span class="st">"wetness_missing"</span>, <span class="st">"snow_index_missing"</span>,</span>
+<span id="cb107-19"><a href="#cb107-19" aria-hidden="true" tabindex="-1"></a>  <span class="st">"summit_wind_dir_missing"</span>, <span class="st">"summit_wind_speed_missing"</span>, <span class="st">"summit_air_temp_missing"</span></span>
+<span id="cb107-20"><a href="#cb107-20" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb107-21"><a href="#cb107-21" aria-hidden="true" tabindex="-1"></a>flag_cols <span class="ot">&lt;-</span> <span class="fu">unique</span>(<span class="fu">unlist</span>(<span class="fu">lapply</span>(flag_prefixes, <span class="cf">function</span>(p) <span class="fu">grep</span>(p, <span class="fu">names</span>(train), <span class="at">value =</span> <span class="cn">TRUE</span>))))</span>
+<span id="cb107-22"><a href="#cb107-22" aria-hidden="true" tabindex="-1"></a><span class="co"># You may have named them with `_initial`. If so, they’ll be picked up by grep above.</span></span>
+<span id="cb107-23"><a href="#cb107-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb107-24"><a href="#cb107-24" aria-hidden="true" tabindex="-1"></a><span class="co"># 3) Build the recipe ---------------------------------------------------------</span></span>
+<span id="cb107-25"><a href="#cb107-25" aria-hidden="true" tabindex="-1"></a>rec <span class="ot">&lt;-</span> <span class="fu">recipe</span>(FAH_ord <span class="sc">~</span> ., <span class="at">data =</span> train) <span class="sc">%&gt;%</span> </span>
+<span id="cb107-26"><a href="#cb107-26" aria-hidden="true" tabindex="-1"></a>  <span class="co"># drop columns we don't want to feed to the NN</span></span>
+<span id="cb107-27"><a href="#cb107-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_rm</span>(<span class="fu">all_of</span>(drop_cols)) <span class="sc">%&gt;%</span></span>
+<span id="cb107-28"><a href="#cb107-28" aria-hidden="true" tabindex="-1"></a>  <span class="co"># explicitly confirm Area is a predictor (this line is optional, since it’s already a predictor by default)</span></span>
+<span id="cb107-29"><a href="#cb107-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">update_role</span>(Area, <span class="at">new_role =</span> <span class="st">"predictor"</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb107-30"><a href="#cb107-30" aria-hidden="true" tabindex="-1"></a>  <span class="co"># collapse *very* rare categories to "other"</span></span>
+<span id="cb107-31"><a href="#cb107-31" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_other</span>(<span class="fu">all_nominal_predictors</span>(), <span class="at">threshold =</span> <span class="fl">0.005</span>, <span class="at">other =</span> <span class="st">"other"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb107-32"><a href="#cb107-32" aria-hidden="true" tabindex="-1"></a>  <span class="co"># impute categoricals by mode</span></span>
+<span id="cb107-33"><a href="#cb107-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_impute_mode</span>(<span class="fu">all_nominal_predictors</span>()) <span class="sc">%&gt;%</span></span>
+<span id="cb107-34"><a href="#cb107-34" aria-hidden="true" tabindex="-1"></a>  <span class="co"># impute numerics by bagged trees</span></span>
+<span id="cb107-35"><a href="#cb107-35" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_impute_bag</span>(<span class="fu">all_numeric_predictors</span>()) <span class="sc">%&gt;%</span></span>
+<span id="cb107-36"><a href="#cb107-36" aria-hidden="true" tabindex="-1"></a>  <span class="co"># one-hot encode categoricals</span></span>
+<span id="cb107-37"><a href="#cb107-37" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_dummy</span>(<span class="fu">all_nominal_predictors</span>(), <span class="at">one_hot =</span> <span class="cn">TRUE</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb107-38"><a href="#cb107-38" aria-hidden="true" tabindex="-1"></a>  <span class="co"># drop zero-variance and near-zero-variance columns</span></span>
+<span id="cb107-39"><a href="#cb107-39" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_zv</span>(<span class="fu">all_predictors</span>()) <span class="sc">%&gt;%</span></span>
+<span id="cb107-40"><a href="#cb107-40" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_nzv</span>(<span class="fu">all_predictors</span>()) <span class="sc">%&gt;%</span></span>
+<span id="cb107-41"><a href="#cb107-41" aria-hidden="true" tabindex="-1"></a>  <span class="co"># scale/center numerics (excluding the missingness flags)</span></span>
+<span id="cb107-42"><a href="#cb107-42" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_normalize</span>(<span class="fu">all_numeric_predictors</span>(), <span class="sc">-</span><span class="fu">all_of</span>(flag_cols))</span>
+<span id="cb107-43"><a href="#cb107-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb107-44"><a href="#cb107-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb107-45"><a href="#cb107-45" aria-hidden="true" tabindex="-1"></a><span class="co"># 4) Prep on TRAIN only, then bake to splits ---------------------------------</span></span>
+<span id="cb107-46"><a href="#cb107-46" aria-hidden="true" tabindex="-1"></a>rec_prep <span class="ot">&lt;-</span> <span class="fu">prep</span>(rec, <span class="at">training =</span> train, <span class="at">retain =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb107-47"><a href="#cb107-47" aria-hidden="true" tabindex="-1"></a><span class="co"># this calculates the mean/sd for scaling, finds the mode of categoricals, trains the bagged trees for imputation.</span></span>
+<span id="cb107-48"><a href="#cb107-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb107-49"><a href="#cb107-49" aria-hidden="true" tabindex="-1"></a>x_train <span class="ot">&lt;-</span> <span class="fu">bake</span>(rec_prep, <span class="at">new_data =</span> train) <span class="co"># apply to train set</span></span>
+<span id="cb107-50"><a href="#cb107-50" aria-hidden="true" tabindex="-1"></a>x_val   <span class="ot">&lt;-</span> <span class="fu">bake</span>(rec_prep, <span class="at">new_data =</span> val) <span class="co"># apply to val set</span></span>
+<span id="cb107-51"><a href="#cb107-51" aria-hidden="true" tabindex="-1"></a>x_test  <span class="ot">&lt;-</span> <span class="fu">bake</span>(rec_prep, <span class="at">new_data =</span> test) <span class="co"># apply to test set</span></span>
+<span id="cb107-52"><a href="#cb107-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb107-53"><a href="#cb107-53" aria-hidden="true" tabindex="-1"></a><span class="co"># 5) Quick sanity checks ------------------------------------------------------</span></span>
+<span id="cb107-54"><a href="#cb107-54" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Shapes:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Shapes:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb109"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb109-1"><a href="#cb109-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"  train:"</span>, <span class="fu">dim</span>(x_train)[<span class="dv">1</span>], <span class="st">"rows x"</span>, <span class="fu">dim</span>(x_train)[<span class="dv">2</span>], <span class="st">"cols</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  train: 7396 rows x 65 cols</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb111"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb111-1"><a href="#cb111-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"  val  :"</span>, <span class="fu">dim</span>(x_val)[<span class="dv">1</span>],   <span class="st">"rows x"</span>, <span class="fu">dim</span>(x_val)[<span class="dv">2</span>],   <span class="st">"cols</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  val  : 1584 rows x 65 cols</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb113"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb113-1"><a href="#cb113-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"  test :"</span>, <span class="fu">dim</span>(x_test)[<span class="dv">1</span>],  <span class="st">"rows x"</span>, <span class="fu">dim</span>(x_test)[<span class="dv">2</span>],  <span class="st">"cols</span><span class="sc">\n\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  test : 1578 rows x 65 cols</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb115"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb115-1"><a href="#cb115-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Any NA left? "</span>,</span>
+<span id="cb115-2"><a href="#cb115-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">any</span>(<span class="fu">vapply</span>(x_train, <span class="cf">function</span>(col) <span class="fu">any</span>(<span class="fu">is.na</span>(col)), <span class="fu">logical</span>(<span class="dv">1</span>))),</span>
+<span id="cb115-3"><a href="#cb115-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">any</span>(<span class="fu">vapply</span>(x_val,   <span class="cf">function</span>(col) <span class="fu">any</span>(<span class="fu">is.na</span>(col)), <span class="fu">logical</span>(<span class="dv">1</span>))),</span>
+<span id="cb115-4"><a href="#cb115-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">any</span>(<span class="fu">vapply</span>(x_test,  <span class="cf">function</span>(col) <span class="fu">any</span>(<span class="fu">is.na</span>(col)), <span class="fu">logical</span>(<span class="dv">1</span>))), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Any NA left?  FALSE FALSE FALSE </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb117"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb117-1"><a href="#cb117-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Target distribution after preprocessing (train):</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Target distribution after preprocessing (train):</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb119"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb119-1"><a href="#cb119-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(<span class="fu">table</span>(x_train<span class="sc">$</span>FAH_ord))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+           Low       Moderate Considerable - Considerable +           High 
+          1628           2293           2200            819            456 </code></pre>
+</div>
+</div>
+</section>
+<section id="old-imputing-missing-values" class="level1">
+<h1>[OLD] Imputing missing values</h1>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb121"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb121-1"><a href="#cb121-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb121-2"><a href="#cb121-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb121-3"><a href="#cb121-3" aria-hidden="true" tabindex="-1"></a><span class="co"># --- (B) Time-aware split (no leakage) ---</span></span>
+<span id="cb121-4"><a href="#cb121-4" aria-hidden="true" tabindex="-1"></a>aval <span class="ot">&lt;-</span> aval <span class="sc">%&gt;%</span> <span class="fu">arrange</span>(Date) <span class="co"># ensure dataset is sorted chronologically</span></span>
+<span id="cb121-5"><a href="#cb121-5" aria-hidden="true" tabindex="-1"></a>split  <span class="ot">&lt;-</span> <span class="fu">initial_time_split</span>(aval, <span class="at">prop =</span> <span class="fl">0.8</span>)  <span class="co"># last ~20% becomes test by time and the first 80% become the training set</span></span>
+<span id="cb121-6"><a href="#cb121-6" aria-hidden="true" tabindex="-1"></a>train  <span class="ot">&lt;-</span> <span class="fu">training</span>(split)</span>
+<span id="cb121-7"><a href="#cb121-7" aria-hidden="true" tabindex="-1"></a>test   <span class="ot">&lt;-</span> <span class="fu">testing</span>(split)</span>
+<span id="cb121-8"><a href="#cb121-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb121-9"><a href="#cb121-9" aria-hidden="true" tabindex="-1"></a><span class="co"># --- (C) Bagged-tree imputation recipe ---</span></span>
+<span id="cb121-10"><a href="#cb121-10" aria-hidden="true" tabindex="-1"></a>rec_bagged <span class="ot">&lt;-</span> <span class="fu">recipe</span>(FAH_ord <span class="sc">~</span> ., <span class="at">data =</span> train) <span class="sc">%&gt;%</span></span>
+<span id="cb121-11"><a href="#cb121-11" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Drop pure IDs / text fields from predictors (won't be used by the model)</span></span>
+<span id="cb121-12"><a href="#cb121-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">update_role</span>(<span class="fu">any_of</span>(<span class="fu">c</span>(<span class="st">"DateTime"</span>,<span class="st">"OSgrid"</span>,<span class="st">"Location"</span>,<span class="st">"site_id"</span>)), <span class="at">new_role =</span> <span class="st">"id"</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb121-13"><a href="#cb121-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_rm</span>(<span class="fu">any_of</span>(<span class="fu">c</span>(<span class="st">"DateTime"</span>,<span class="st">"OSgrid"</span>,<span class="st">"Location"</span>,<span class="st">"site_id"</span>))) <span class="sc">%&gt;%</span></span>
+<span id="cb121-14"><a href="#cb121-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb121-15"><a href="#cb121-15" aria-hidden="true" tabindex="-1"></a>  <span class="co"># remove these because we transformed them:</span></span>
+<span id="cb121-16"><a href="#cb121-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_rm</span>(<span class="fu">any_of</span>(<span class="fu">c</span>(<span class="st">"Wind.Dir"</span>,<span class="st">"Summit.Wind.Dir"</span>,<span class="st">"Aspect"</span>))) <span class="sc">%&gt;%</span></span>
+<span id="cb121-17"><a href="#cb121-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb121-18"><a href="#cb121-18" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Bagged trees for numeric predictors (exclude the 0/1 missing flags)</span></span>
+<span id="cb121-19"><a href="#cb121-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_impute_bag</span>(<span class="fu">all_numeric_predictors</span>(), <span class="sc">-</span><span class="fu">matches</span>(<span class="st">"_missing$"</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb121-20"><a href="#cb121-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb121-21"><a href="#cb121-21" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Mode imputation for categorical predictors (factors/character)</span></span>
+<span id="cb121-22"><a href="#cb121-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_impute_mode</span>(<span class="fu">all_nominal_predictors</span>()) <span class="sc">%&gt;%</span></span>
+<span id="cb121-23"><a href="#cb121-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb121-24"><a href="#cb121-24" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Normalize numeric predictors for NN stability, but NOT the 0/1 flags</span></span>
+<span id="cb121-25"><a href="#cb121-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_normalize</span>(<span class="fu">all_numeric_predictors</span>(), <span class="sc">-</span><span class="fu">matches</span>(<span class="st">"_missing$"</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb121-26"><a href="#cb121-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb121-27"><a href="#cb121-27" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Remove zero-variance columns that can appear after imputation/normalization</span></span>
+<span id="cb121-28"><a href="#cb121-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_zv</span>(<span class="fu">all_predictors</span>())</span>
+<span id="cb121-29"><a href="#cb121-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb121-30"><a href="#cb121-30" aria-hidden="true" tabindex="-1"></a><span class="co"># --- (D) Prep on TRAIN only; bake TRAIN/</span><span class="al">TEST</span><span class="co"> ---</span></span>
+<span id="cb121-31"><a href="#cb121-31" aria-hidden="true" tabindex="-1"></a>prep_bagged <span class="ot">&lt;-</span> <span class="fu">prep</span>(rec_bagged, <span class="at">training =</span> train, <span class="at">retain =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb121-32"><a href="#cb121-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb121-33"><a href="#cb121-33" aria-hidden="true" tabindex="-1"></a>train_ready <span class="ot">&lt;-</span> <span class="fu">bake</span>(prep_bagged, <span class="at">new_data =</span> <span class="cn">NULL</span>)  <span class="co"># training set baked</span></span>
+<span id="cb121-34"><a href="#cb121-34" aria-hidden="true" tabindex="-1"></a>test_ready  <span class="ot">&lt;-</span> <span class="fu">bake</span>(prep_bagged, <span class="at">new_data =</span> test)  <span class="co"># test set baked</span></span>
+<span id="cb121-35"><a href="#cb121-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb121-36"><a href="#cb121-36" aria-hidden="true" tabindex="-1"></a><span class="co"># --- (E) Quick checks ---</span></span>
+<span id="cb121-37"><a href="#cb121-37" aria-hidden="true" tabindex="-1"></a><span class="co"># No NA's left in predictors?</span></span>
+<span id="cb121-38"><a href="#cb121-38" aria-hidden="true" tabindex="-1"></a><span class="fu">sapply</span>(<span class="fu">select</span>(train_ready, <span class="sc">-</span>FAH_ord), \(x) <span class="fu">sum</span>(<span class="fu">is.na</span>(x))) <span class="sc">%&gt;%</span> <span class="fu">sum</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 0</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb123"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb123-1"><a href="#cb123-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Indicators remain 0/1 and were not normalized?</span></span>
+<span id="cb123-2"><a href="#cb123-2" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(<span class="fu">select</span>(train_ready, <span class="fu">ends_with</span>(<span class="st">"_missing"</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>&lt; table of extent 0 x 0 &gt;</code></pre>
 </div>
 </div>
 <p>todo - check for duplicates after imputing missing values. (noticed there are less unique dates than there are # obs)</p>
+
 
 
 </section>

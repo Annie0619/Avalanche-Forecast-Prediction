@@ -13,6 +13,7 @@ library(rpart)
 library(recipes)
 library(httr2)
 library(jsonlite)
+library(themis)
 
 # read in the data
 aval <- read.csv("scotland_avalanche_forecasts_2009_2025.csv")
@@ -71,7 +72,7 @@ aval <- aval %>%
     FAH_ord  = factor(
       FAH,
       # specify the following order:
-      levels  = c("Low","Moderate","Considerable -","Considerable","Considerable +","High"),
+      levels  = c("Low","Moderate","Considerable -","Considerable +","High"),
       ordered = TRUE
     )
   )
@@ -97,7 +98,6 @@ aval %>%
 ## no: cannot use Osgrid to impute missing Alt
 ```
 
-
 # Investigate duplicates
 
 ```{r}
@@ -112,70 +112,45 @@ aval %>%
   filter(dup_n > 1)
 ```
 
-The above values seem to be duplicates, although some rows are almost exactly the same, except for some having an NA, whereas another row has a value. Begin by investigating the conflicts:
-
-```{r}
-# define the keys that identify duplicates
-key_cols <- c("Date", "OSgrid", "Area")
-
-aval_collapsed <- aval %>%
-  group_by(across(all_of(key_cols))) %>%
-  summarise(across(everything(), ~ first(na.omit(.x)), .names = "{.col}"),
-            .groups = "drop")
-
-
-key_cols <- c("Date", "OSgrid", "Area")
-
-# check numeric columns for consistency
-numeric_conflicts <- aval %>%
-  group_by(across(all_of(key_cols))) %>%
-  summarise(
-    across(where(is.numeric),
-           ~ n_distinct(na.omit(.x)), 
-           .names = "{.col}_nunique"),
-    .groups = "drop"
-  ) %>%
-  # flag only the groups where at least one numeric column has >1 distinct value
-  filter(if_any(ends_with("_nunique"), ~ .x > 1))
-
-numeric_conflicts # there are some that have distinct values in the numeric variables
-```
 
 Some of these rows don't just differ by NA, but have conflicting numeric values. For these, keep both records, but for those that only differ by an NA, collapse the rows to keep the most numeric values per column.
 
 ```{r}
-# --- define your keys
+## 0) Define and validate keys -----------------------------------------------
 key_cols <- c("Date", "OSgrid", "Area")
-
-# sanity: which keys are missing?
 missing_keys <- setdiff(key_cols, names(aval))
 if (length(missing_keys)) {
   stop("These key columns are not in `aval`: ", paste(missing_keys, collapse = ", "))
 }
 
-# build list of NON-key columns explicitly
+## 1) Build candidate non-key columns once (and be explicit) -----------------
 non_key_cols <- setdiff(names(aval), key_cols)
 
-# helper: first non-NA while preserving type
-first_non_na <- function(x) {
-  nx <- x[!is.na(x)]
-  if (length(nx) == 0) x[NA_integer_] else nx[1]
-}
-
-# 1) identify groups with numeric conflicts
-numeric_conflicts <- aval %>%
+## 2) Find conflicts in ANY column type (numeric OR categorical) -------------
+# - use any_of() so it won't error if something is off
+# - n_distinct on na.omit for each column within the key
+wide_conflicts <- aval %>%
   group_by(across(all_of(key_cols))) %>%
   summarise(
-    across(where(is.numeric), ~ n_distinct(na.omit(.x)), .names = "{.col}_nuniq"),
+    across(all_of(non_key_cols), ~ n_distinct(na.omit(.x)), .names = "nuniq_{.col}"),
     .groups = "drop"
   ) %>%
-  filter(if_any(ends_with("_nuniq"), ~ .x > 1)) %>%
+  # mark groups where any column has >1 distinct observed value
+  mutate(any_conflict = if_any(starts_with("nuniq_"), ~ .x > 1)) %>%
+  filter(any_conflict) %>%
   select(all_of(key_cols)) %>%
   distinct()
 
-# 2) collapse only groups with NO numeric conflicts
+## 3) Collapse only conflict-free groups -------------------------------------
+# typed NA + first_non_na for safe collapsing
+
+first_non_na <- function(x) {
+  i <- which(!is.na(x))[1]
+  if (is.na(i)) x[NA_integer_] else x[i]
+}
+
 collapsed_ok <- aval %>%
-  anti_join(numeric_conflicts, by = key_cols) %>%
+  anti_join(wide_conflicts, by = key_cols) %>%
   group_by(across(all_of(key_cols))) %>%
   summarise(
     across(all_of(non_key_cols), first_non_na),
@@ -184,18 +159,16 @@ collapsed_ok <- aval %>%
     .groups = "drop"
   )
 
-# 3) keep conflicting groups as-is (flag them)
+## 4) Keep conflicting groups as-is (flag them) -------------------------------
 kept_conflicts <- aval %>%
-  semi_join(numeric_conflicts, by = key_cols) %>%
+  semi_join(wide_conflicts, by = key_cols) %>%
   mutate(.collapsed = FALSE)
 
-# 4) combine
+## 5) Combine and (optionally) drop flags ------------------------------------
 aval_dups_resolved <- bind_rows(collapsed_ok, kept_conflicts) %>%
   arrange(across(all_of(key_cols)))
 
-# 5) make this aval
-aval <- aval_dups_resolved %>%
-  select(-.collapsed, -.rows_collapsed)
+aval <- aval_dups_resolved %>% select(-.collapsed, -.rows_collapsed)
 ```
 
 
@@ -257,15 +230,16 @@ In the avalanche dataset, where variables combine topography, weather, and snowp
 # --- (A) Ensure target exists & indicators (0/1) are present ---
 aval <- aval %>%
   mutate(
-    av_cat_missing            = as.factor(is.na(AV.Cat)),
-    ski_pen_missing           = as.factor(is.na(Ski.Pen)),
-    crystals_missing          = as.factor(is.na(Crystals)),
-    wetness_missing           = as.factor(is.na(Wetness)),
-    snow_index_missing        = as.factor(is.na(Snow.Index)),
-    summit_wind_dir_missing   = as.factor(is.na(Summit.Wind.Dir)),
-    summit_wind_speed_missing = as.factor(is.na(Summit.Wind.Speed)),
-    summit_air_temp_missing   = as.factor(is.na(Summit.Air.Temp))
+    av_cat_missing_initial            = as.integer(is.na(AV.Cat)),
+    ski_pen_missing_initial           = as.integer(is.na(Ski.Pen)),
+    crystals_missing_initial          = as.integer(is.na(Crystals)),
+    wetness_missing_initial           = as.integer(is.na(Wetness)),
+    snow_index_missing_initial        = as.integer(is.na(Snow.Index)),
+    summit_wind_dir_missing_initial   = as.integer(is.na(Summit.Wind.Dir)),
+    summit_wind_speed_missing_initial = as.integer(is.na(Summit.Wind.Speed)),
+    summit_air_temp_missing_initial   = as.integer(is.na(Summit.Air.Temp))
   )
+
 ```
 
 The imputation will be done at a later stage. At first, the data still needs to be cleaned. Note that these missing values were intentionally set now before looking at improbable or outlier values below that are then encoded as NA. The reason for this is to truly only capture "meaningful" missingness in these indicators and not convolute them with missingness due to incorrect values being entered.
@@ -408,14 +382,6 @@ length(which(aval$Aspect<0)) # only 4- make these NA
 # make values >360 and <0 NA:
 aval$Aspect[which(aval$Aspect<0 |
                     aval$Aspect>360)] <- NA_real_
-
-# also fix the corresponding sin and cos Aspects:
-# Recalculate sine and cosine encodings after cleaning Aspect
-aval <- aval %>%
-  mutate(
-    Aspect_sin = if_else(is.na(Aspect), NA_real_, sin(pi * Aspect / 180)),
-    Aspect_cos = if_else(is.na(Aspect), NA_real_, cos(pi * Aspect / 180))
-  )
 ```
 
 ### No.Settle
@@ -697,7 +663,133 @@ aval <- aval %>%
   )
 ```
 
-# Imputing missing values
+# Train- Test- Val split
+Note that imputation will be done after this as we will be using bagged trees and want to avoid data leakage. Also note that the split is not random, since this is time series data. Thus the first 70% of the data is the training set.
+
+```{r}
+# STEP 1 — Target + time-based splits ---------------------------------------
+set.seed(7)
+
+# 0) Ensure the columns we need exist & are the right type
+stopifnot(all(c("Date") %in% names(aval)))
+
+# If FAH_ord doesn't exist or isn't correctly ordered, (re)create it from FAH
+target_levels <- c("Low","Moderate","Considerable -","Considerable +","High")
+if (!("FAH_ord" %in% names(aval)) ||
+    !is.ordered(aval$FAH_ord) ||
+    !identical(levels(aval$FAH_ord), target_levels)) {
+  stopifnot("FAH" %in% names(aval))
+  aval <- aval %>%
+    mutate(FAH_ord = factor(FAH, levels = target_levels, ordered = TRUE))
+}
+
+# Parse Date robustly if needed
+if (!inherits(aval$Date, "Date")) {
+  aval <- aval %>%
+    mutate(Date = as.Date(parse_date_time(
+      Date, orders = c("ymd HMS","ymd HM","ymd","dmy HMS","dmy HM","dmy")
+    )))
+}
+
+# Drop rows with missing target or Date (NNs can't train on NA targets)
+aval <- aval %>% filter(!is.na(Date), !is.na(FAH_ord))
+
+# 1) Create time-based splits: 70% train, 15% val, 15% test by calendar time
+cut1 <- quantile(aval$Date, probs = 0.70, na.rm = TRUE, type = 1)
+cut2 <- quantile(aval$Date, probs = 0.85, na.rm = TRUE, type = 1)
+
+train <- aval %>% filter(Date <= cut1)
+val   <- aval %>% filter(Date >  cut1 & Date <= cut2)
+test  <- aval %>% filter(Date >  cut2)
+
+# Sanity checks: no overlap & correct ordering
+stopifnot(max(train$Date) < min(val$Date), max(val$Date) < min(test$Date))
+
+# 2) Quick class balance check (important for NN)
+cat("Train date range: ", min(train$Date), "to", max(train$Date), "\n")
+cat("Val   date range: ", min(val$Date),   "to", max(val$Date),   "\n")
+cat("Test  date range: ", min(test$Date),  "to", max(test$Date),  "\n\n")
+
+cat("Class counts (train):\n"); print(table(train$FAH_ord))
+cat("\nClass proportions (train):\n"); print(round(prop.table(table(train$FAH_ord)), 3))
+
+cat("\nClass counts (val):\n"); print(table(val$FAH_ord))
+cat("\nClass counts (test):\n"); print(table(test$FAH_ord))
+```
+Note the imbalance in FAH_ord. The test set has no High cases. But, the training set has enough data to train on to be able to identify High risk cases.
+
+# Pre-processing data
+
+```{r}
+# STEP 2 — NN-ready preprocessing with recipes --------------------------------
+
+# 1) Choose columns to DROP (IDs, raw angles, dates, free text) ---------------
+drop_cols <- intersect(
+  c(
+    "FAH",                # raw target (we'll use FAH_ord)
+    "Date", "DateTime",   # time stamps (we keep year/month/doy/season)
+    "Wind.Dir", "Summit.Wind.Dir", "Aspect",   # raw angles (keep sin/cos)
+    "OSgrid",             # grid ID (too high-cardinality for one-hot)
+    "Location"            # often messy/free-text; drop for NN baseline
+  ),
+  names(train)
+)
+
+# 2) Identify informative-missing flags so we can avoid scaling them ----------
+flag_prefixes <- c(
+  "av_cat_missing", "ski_pen_missing", "crystals_missing",
+  "wetness_missing", "snow_index_missing",
+  "summit_wind_dir_missing", "summit_wind_speed_missing", "summit_air_temp_missing"
+)
+flag_cols <- unique(unlist(lapply(flag_prefixes, function(p) grep(p, names(train), value = TRUE))))
+# You may have named them with `_initial`. If so, they’ll be picked up by grep above.
+
+# 3) Build the recipe ---------------------------------------------------------
+rec <- recipe(FAH_ord ~ ., data = train) %>% 
+  # drop columns we don't want to feed to the NN
+  step_rm(all_of(drop_cols)) %>%
+  # explicitly confirm Area is a predictor (this line is optional, since it’s already a predictor by default)
+  update_role(Area, new_role = "predictor") %>%
+  # collapse *very* rare categories to "other"
+  step_other(all_nominal_predictors(), threshold = 0.005, other = "other") %>% 
+  # impute categoricals by mode
+  step_impute_mode(all_nominal_predictors()) %>%
+  # impute numerics by bagged trees
+  step_impute_bag(all_numeric_predictors()) %>%
+  # one-hot encode categoricals
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%
+  # drop zero-variance and near-zero-variance columns
+  step_zv(all_predictors()) %>%
+  step_nzv(all_predictors()) %>%
+  # scale/center numerics (excluding the missingness flags)
+  step_normalize(all_numeric_predictors(), -all_of(flag_cols))
+
+
+# 4) Prep on TRAIN only, then bake to splits ---------------------------------
+rec_prep <- prep(rec, training = train, retain = TRUE)
+# this calculates the mean/sd for scaling, finds the mode of categoricals, trains the bagged trees for imputation.
+
+x_train <- bake(rec_prep, new_data = train) # apply to train set
+x_val   <- bake(rec_prep, new_data = val) # apply to val set
+x_test  <- bake(rec_prep, new_data = test) # apply to test set
+
+# 5) Quick sanity checks ------------------------------------------------------
+cat("Shapes:\n")
+cat("  train:", dim(x_train)[1], "rows x", dim(x_train)[2], "cols\n")
+cat("  val  :", dim(x_val)[1],   "rows x", dim(x_val)[2],   "cols\n")
+cat("  test :", dim(x_test)[1],  "rows x", dim(x_test)[2],  "cols\n\n")
+
+cat("Any NA left? ",
+    any(vapply(x_train, function(col) any(is.na(col)), logical(1))),
+    any(vapply(x_val,   function(col) any(is.na(col)), logical(1))),
+    any(vapply(x_test,  function(col) any(is.na(col)), logical(1))), "\n")
+
+cat("\nTarget distribution after preprocessing (train):\n")
+print(table(x_train$FAH_ord))
+```
+
+
+# [OLD] Imputing missing values
 
 ```{r}
 set.seed(123)
