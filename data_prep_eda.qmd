@@ -695,25 +695,25 @@ if (!inherits(aval$Date, "Date")) {
 aval <- aval %>% filter(!is.na(Date), !is.na(FAH_ord))
 
 # 1) Create time-based splits: 70% train, 15% val, 15% test by calendar time
-cut1 <- quantile(aval$Date, probs = 0.70, na.rm = TRUE, type = 1)
-cut2 <- quantile(aval$Date, probs = 0.85, na.rm = TRUE, type = 1)
+cut1 <- quantile(aval$Date, probs = 0.80, na.rm = TRUE, type = 1)
+#cut2 <- quantile(aval$Date, probs = 0.85, na.rm = TRUE, type = 1)
 
 train <- aval %>% filter(Date <= cut1)
-val   <- aval %>% filter(Date >  cut1 & Date <= cut2)
-test  <- aval %>% filter(Date >  cut2)
+#val   <- aval %>% filter(Date >  cut1 & Date <= cut2)
+test  <- aval %>% filter(Date >  cut1)#cut2)
 
 # Sanity checks: no overlap & correct ordering
-stopifnot(max(train$Date) < min(val$Date), max(val$Date) < min(test$Date))
+#stopifnot(max(train$Date) < min(val$Date), max(val$Date) < min(test$Date))
 
 # 2) Quick class balance check (important for NN)
 cat("Train date range: ", min(train$Date), "to", max(train$Date), "\n")
-cat("Val   date range: ", min(val$Date),   "to", max(val$Date),   "\n")
+#cat("Val   date range: ", min(val$Date),   "to", max(val$Date),   "\n")
 cat("Test  date range: ", min(test$Date),  "to", max(test$Date),  "\n\n")
 
 cat("Class counts (train):\n"); print(table(train$FAH_ord))
 cat("\nClass proportions (train):\n"); print(round(prop.table(table(train$FAH_ord)), 3))
 
-cat("\nClass counts (val):\n"); print(table(val$FAH_ord))
+#cat("\nClass counts (val):\n"); print(table(val$FAH_ord))
 cat("\nClass counts (test):\n"); print(table(test$FAH_ord))
 ```
 Note the imbalance in FAH_ord. The test set has no High cases. But, the training set has enough data to train on to be able to identify High risk cases.
@@ -764,26 +764,73 @@ rec <- recipe(FAH_ord ~ ., data = train) %>%
   # scale/center numerics (excluding the missingness flags)
   step_normalize(all_numeric_predictors(), -all_of(flag_cols))
 
-
 # 4) Prep on TRAIN only, then bake to splits ---------------------------------
 rec_prep <- prep(rec, training = train, retain = TRUE)
 # this calculates the mean/sd for scaling, finds the mode of categoricals, trains the bagged trees for imputation.
 
 x_train <- bake(rec_prep, new_data = train) # apply to train set
-x_val   <- bake(rec_prep, new_data = val) # apply to val set
+#x_val   <- bake(rec_prep, new_data = val) # apply to val set
 x_test  <- bake(rec_prep, new_data = test) # apply to test set
 
 # 5) Quick sanity checks ------------------------------------------------------
 cat("Shapes:\n")
 cat("  train:", dim(x_train)[1], "rows x", dim(x_train)[2], "cols\n")
-cat("  val  :", dim(x_val)[1],   "rows x", dim(x_val)[2],   "cols\n")
+#cat("  val  :", dim(x_val)[1],   "rows x", dim(x_val)[2],   "cols\n")
 cat("  test :", dim(x_test)[1],  "rows x", dim(x_test)[2],  "cols\n\n")
 
 cat("Any NA left? ",
     any(vapply(x_train, function(col) any(is.na(col)), logical(1))),
-    any(vapply(x_val,   function(col) any(is.na(col)), logical(1))),
+   # any(vapply(x_val,   function(col) any(is.na(col)), logical(1))),
     any(vapply(x_test,  function(col) any(is.na(col)), logical(1))), "\n")
 
 cat("\nTarget distribution after preprocessing (train):\n")
 print(table(x_train$FAH_ord))
+
+cat("\nTarget distribution after preprocessing (test):\n")
+print(table(x_test$FAH_ord))
 ```
+change splits to 0.8 train 0.2 test
+
+Talk to data set balance 
+
+
+## Changes 
+
+- remove unnecessary columns 
+- encoded categorical and binary variables 
+
+
+```{r}
+
+#encode reponse variable as integers, presevre ordinal property
+
+lev = c("Low", "Moderate", "Considerable-", "Considerable+", "High")
+
+X_train = x_train %>% mutate(
+  #FAH_ord = factor(FAH, )
+  FAH_ord= as.integer(FAH_ord) - 1
+  )
+
+# X_val = x_val %>% mutate(
+#   #FAH_ord = factor(FAH, )
+#   FAH_ord= as.integer(FAH_ord) - 1
+#   )
+
+X_test = x_test %>% mutate(
+  #FAH_ord = factor(FAH, )
+  FAH_ord= as.integer(FAH_ord) - 1
+  )
+```
+
+write to csv
+
+```{r}
+write.csv(X_train, "X_train.csv")
+write.csv(X_test, "X_test.csv")
+```
+
+will isolate response and do validation windown splits in python
+
+
+
+
