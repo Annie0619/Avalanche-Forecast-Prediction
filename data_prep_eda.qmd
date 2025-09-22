@@ -718,6 +718,14 @@ cat("\nClass counts (test):\n"); print(table(test$FAH_ord))
 ```
 Note the imbalance in FAH_ord. The test set has no High cases. But, the training set has enough data to train on to be able to identify High risk cases.
 
+```{r}
+# extract dates 
+
+train_dates = train$Date
+test_dates = test$Date
+```
+
+
 # Pre-processing data
 
 ```{r}
@@ -744,6 +752,8 @@ flag_prefixes <- c(
 flag_cols <- unique(unlist(lapply(flag_prefixes, function(p) grep(p, names(train), value = TRUE))))
 # You may have named them with `_initial`. If so, they’ll be picked up by grep above.
 
+#flag_cols = c(flag_cols, "Area")
+
 # 3) Build the recipe ---------------------------------------------------------
 rec <- recipe(FAH_ord ~ ., data = train) %>% 
   # drop columns we don't want to feed to the NN
@@ -762,7 +772,7 @@ rec <- recipe(FAH_ord ~ ., data = train) %>%
   step_zv(all_predictors()) %>%
   step_nzv(all_predictors()) %>%
   # scale/center numerics (excluding the missingness flags)
-  step_normalize(all_numeric_predictors(), -all_of(flag_cols))
+  step_normalize(all_numeric_predictors(), -all_of(c("Area_Creag.Meagaidh",  "Area_Glencoe",             "Area_Lochaber","Area_Northern.Cairngorms", "Area_Southern.Cairngorms" ,"Area_Torridon",flag_cols)))
 
 # 4) Prep on TRAIN only, then bake to splits ---------------------------------
 rec_prep <- prep(rec, training = train, retain = TRUE)
@@ -822,6 +832,24 @@ X_test = x_test %>% mutate(
   )
 ```
 
+
+remove month and doy column, rebind full dates for sequence generation in python (keep year), as well as missingness cols 
+
+```{r}
+
+#remove doy and month , and missingness indicators
+
+X_train = X_train[, -(22:31)]
+X_test = X_test[, -(22:31)]
+
+#rebind dates 
+
+X_train = cbind(train_dates, X_train)
+X_test = cbind(test_dates, X_test)
+
+```
+
+
 write to csv
 
 ```{r}
@@ -831,6 +859,11 @@ write.csv(X_test, "X_test.csv")
 
 will isolate response and do validation windown splits in python
 
+remove initial missing windows
 
+```{r}
 
+X_train = read.csv("X_train.csv")
+
+```
 
