@@ -850,6 +850,40 @@ X_test = cbind(test_dates, X_test)
 ```
 
 
+Replace the season binaries with a doy sin/cos for smooth periodicity
+
+```{r}
+X_train <- X_train %>%
+  mutate(
+    doy = yday(train_dates),                              # 1..365/366
+    period = if_else(leap_year(train_dates), 366, 365),   # handle leap years
+    doy_sin = sin(2*pi * doy / period),
+    doy_cos = cos(2*pi * doy / period)
+  ) %>%
+  select(-doy, -period)  # optional: drop helpers
+
+#remove month binaries 
+
+X_train = X_train %>% 
+  select(-season_DJF, -season_MAM)
+
+X_test <- X_test %>%
+  mutate(
+    doy = yday(test_dates),                              # 1..365/366
+    period = if_else(leap_year(test_dates), 366, 365),   # handle leap years
+    doy_sin = sin(2*pi * doy / period),
+    doy_cos = cos(2*pi * doy / period)
+  ) %>%
+  select(-doy, -period)  # optional: drop helpers
+
+#remove month binaries 
+
+X_test = X_test %>% 
+  select(-season_DJF, -season_MAM)
+
+```
+
+
 write to csv
 
 ```{r}
