@@ -837,10 +837,10 @@ remove month and doy column, rebind full dates for sequence generation in python
 
 ```{r}
 
-#remove doy and month , and missingness indicators
+#remove doy and month , and NOT missingness indicators
 
-X_train = X_train[, -(22:31)]
-X_test = X_test[, -(22:31)]
+X_train = X_train[, -(22:24)]
+X_test = X_test[, -(22:24)]
 
 #rebind dates 
 
@@ -900,4 +900,742 @@ remove initial missing windows
 X_train = read.csv("X_train.csv")
 
 ```
+
+
+```{python}
+import os
+import torch
+from torch import nn
+from torch.utils.data import TensorDataset, DataLoader, Subset
+from torchvision import datasets, transforms
+from sklearn.metrics import accuracy_score, f1_score, cohen_kappa_score
+import torch.nn.functional as F
+import numpy as np
+
+from google.colab import files
+import pandas as pd
+import io
+
+# Prompt the user to upload a file
+#print("Upload Train dataset")
+#uploaded = files.upload()
+
+#file_name = next(iter(uploaded))
+
+#print(f"\nSuccessfully uploaded: '{file_name}'")
+
+# Read the uploaded CSV file into a pandas DataFrame.
+# The file content is in bytes, so we use io.BytesIO to wrap it
+# so pandas can read it like a regular file.
+# try:
+#   train = pd.read_csv(io.BytesIO(uploaded[file_name]))
+# 
+#   # Display the first 5 rows of the DataFrame to confirm it worked
+#   print("\nHere are the first 5 rows of your data:")
+#   print(train.head())
+# 
+# except Exception as e:
+#   print(f"\nAn error occurred while reading the CSV file: {e}")
+#   print("Please ensure the uploaded file is a valid CSV.")
+
+train = X_train
+```
+
+```{python}
+# Prompt the user to upload a file
+# print("Upload Test dataset")
+# uploaded = files.upload()
+# 
+# file_name = next(iter(uploaded))
+# 
+# print(f"\nSuccessfully uploaded: '{file_name}'")
+# 
+# # Read the uploaded CSV file into a pandas DataFrame.
+# # The file content is in bytes, so we use io.BytesIO to wrap it
+# # so pandas can read it like a regular file.
+# try:
+#   test = pd.read_csv(io.BytesIO(uploaded[file_name]))
+# 
+#   # Display the first 5 rows of the DataFrame to confirm it worked
+#   print("\nHere are the first 5 rows of your data:")
+#   print(test.head())
+# 
+# except Exception as e:
+#   print(f"\nAn error occurred while reading the CSV file: {e}")
+#   print("Please ensure the uploaded file is a valid CSV.")
+#   
+test = X_test
+```
+
+Prepare Sequences 
+
+```{python}
+target_col = "FAH_ord"
+
+train.rename(columns={train.columns[1]: 'Date'}, inplace=True)
+test.rename(columns={test.columns[1]: 'Date'}, inplace=True)
+
+#remove carried over index column
+train.drop(columns=train.columns[0], inplace=True)
+test.drop(columns=test.columns[0], inplace=True)
+
+date_col   = "Date"
+area_cols  = [c for c in train.columns if c.startswith("Area_")]     # one-hot 0/1
+static_num = [c for c in ["longitude","latitude","Alt","Incline"] if c in train.columns]
+static_cols = static_num + area_cols                                 # fed once per window
+
+# dynamic = numeric columns minus target, static, and labels
+def numeric_cols(df): return df.select_dtypes(include=[np.number]).columns.tolist()
+ban = set([target_col]) | set(static_cols)
+dynamic_cols = [c for c in numeric_cols(train) if c not in ban]
+
+train["_src"] = "train"; test["_src"] = "test"
+df = pd.concat([train, test], ignore_index=True)
+test_start_ts = pd.to_datetime(test[date_col]).min()   # Timestamp
+assert pd.notna(test_start_ts), "Could not determine test start date."
+
+# Area id from one-hots
+df["__area_id__"] = np.argmax(df[area_cols].values, axis=1)
+df = df.sort_values(["__area_id__", date_col]).reset_index(drop=True)
+```
+
+add in previous forecast to predict next forecast
+
+```{python}
+
+#before building windows:
+df = df.sort_values(["__area_id__", date_col])
+df["FAH_prev"] = (df.groupby("__area_id__")[target_col]
+                    .shift(1).astype("float32"))
+df["FAH_prev"] = df["FAH_prev"].fillna(0)   # or area-wise mean
+
+# add to dynamic cols if not there already
+if "FAH_prev" not in dynamic_cols:
+    dynamic_cols.append("FAH_prev")
+
+# rebuild windows (same L,H) to get new Xseq_* with the extra column
+
+
+```
+
+```{python}
+
+train.head()
+test.head()
+
+```
+
+```{python}
+
+#before building windows:
+df = df.sort_values(["__area_id__", date_col])
+df["FAH_prev"] = (df.groupby("__area_id__")[target_col]
+                    .shift(1).astype("float32"))
+df["FAH_prev"] = df["FAH_prev"].fillna(0)   # or area-wise mean
+
+# add to dynamic cols if not there already
+if "FAH_prev" not in dynamic_cols:
+    dynamic_cols.append("FAH_prev")
+
+# rebuild windows (same L,H) to get new Xseq_* with the extra column
+
+```
+
+```{python}
+L, H = 14, 0  # look-back and horizon
+def build_windows_with_dates(df, L, H, dyn_cols, sta_cols, target_col, date_col):
+    X_seq, X_sta, y, tgt_dates = [], [], [], []
+    for a, g in df.groupby("__area_id__", sort=False):
+        g = g.sort_values(date_col)
+        dyn = g[dyn_cols].to_numpy(np.float32)
+        sta = g[sta_cols].to_numpy(np.float32)
+        yy  = g[target_col].to_numpy(np.int64)
+        dd  = g[date_col].to_numpy('datetime64[ns]')
+        for t in range(L+H, len(g)):
+            X_seq.append(dyn[t-L-H:t-H])
+            X_sta.append(sta[t])
+            y.append(yy[t])
+            tgt_dates.append(dd[t])       # date of the target row
+    return (torch.tensor(np.stack(X_seq)),
+            torch.tensor(np.stack(X_sta)),
+            torch.tensor(np.array(y)),
+            np.array(tgt_dates))
+
+Xseq_all, Xsta_all, y_all, tgt_dates = build_windows_with_dates(
+    df, L, H, dynamic_cols, static_cols, target_col, date_col
+)
+
+# 6) SAFE comparison: convert the Timestamp to numpy datetime64 *with unit*
+test_start_np = np.datetime64(test_start_ts, 'ns')
+is_test  = tgt_dates >= test_start_np
+is_train = ~is_test
+
+Xseq_tr, Xsta_tr, y_tr = Xseq_all[is_train], Xsta_all[is_train], y_all[is_train]
+Xseq_te, Xsta_te, y_te = Xseq_all[is_test],  Xsta_all[is_test],  y_all[is_test]
+
+print("Train:", Xseq_tr.shape, Xsta_tr.shape, y_tr.shape)
+print("Test :", Xseq_te.shape, Xsta_te.shape, y_te.shape)
+```
+
+
+Shows the dimensions of the test and train sequences. For train, 8365 sequences, of 14 observations each, of 44 variables. Slightly fewer sequences than there were observations in the train split, as lose some at the bounds where can't build full sequence. 
+
+
+Example sequence
+```{r}
+print(Xseq_tr[[1]])
+```
+
+```{python}
+# You already computed this earlier:
+# Xseq_all, Xsta_all, y_all, tgt_dates = build_windows_with_dates(...)
+
+# And the test boundary:
+test_start_ts = pd.to_datetime(test["Date"]).min()
+test_start_np = np.datetime64(test_start_ts, 'ns')
+
+# Mask by each window's TARGET date
+is_test  = tgt_dates >= test_start_np
+is_train = ~is_test
+
+# Training/Testing target dates aligned to y_tr / y_te
+tgt_dates_tr = tgt_dates[is_train]
+tgt_dates_te = tgt_dates[is_test]
+
+# Sanity check
+assert len(tgt_dates_tr) == y_tr.shape[0]
+assert len(tgt_dates_te) == y_te.shape[0]
+```
+
+Break sequences into folds that follow each other (forward chaining) for time aware validation split
+
+```{python}
+# ---------- 1) Build forward-chaining folds ----------
+def make_time_folds(dates, K=5, gap_days=0):
+    """Return list of (train_idx, val_idx) respecting time and an optional gap."""
+    dates = np.array(dates)
+    uniq = np.unique(dates)
+    # split unique dates into K chronological bins (roughly equal by time span)
+    cuts = np.quantile(np.arange(len(uniq)), np.linspace(0,1,K+1)).round().astype(int)
+    folds = []
+    for k in range(K):
+        start_u, end_u = cuts[k], cuts[k+1]
+        val_days = set(uniq[start_u:end_u])
+        if not val_days:
+            continue
+        val_mask = np.array([d in val_days for d in dates])
+        # embargo/gap: drop train samples within gap_days before the val start
+        if gap_days > 0:
+            val_start = uniq[start_u]
+            gap_mask = dates >= (np.datetime64(val_start) - np.timedelta64(gap_days, 'D'))
+        else:
+            gap_mask = np.zeros_like(val_mask, dtype=bool)
+        train_mask = (~val_mask) & (~gap_mask) & (dates < np.max(list(val_days)))
+        tr_idx = np.where(train_mask)[0]
+        va_idx = np.where(val_mask)[0]
+        if len(tr_idx) and len(va_idx):
+            folds.append((tr_idx, va_idx))
+    return folds
+
+```
+
+## Neural Network architecture
+
+Using two measures primarly: QWK and CORN
+
+Quadratic Weighted Kappa (QWK) measures agreement between two sets of ordinal ratings (predicted vs forecasted hazard level). Applies quadratic weighting - mistakes that are further apart are more penalised than close ones. lies on -1 to 1
+
+QWK is non-differntiabe (can't be used in backprop), so not used in training only as metric
+
+Instead train with differentiable loss - CORN. QWK is used for validation and for early stopping
+
+Cumulative Ordinal Regression for NN (CORN). 
+"CORN reframes the multi-class problem into a series of simpler, ordered binary classification tasks."
+
+Chose CORN over CE because CE treats classes as nominal, so does not distinguish between misclassifications (treats all errors equally bad which is not ideal for ordinal case).
+
+CORN creates K-1 logits for binary question Pr(y>K), as opposed to CE which generates K softmax logits
+
+(note that the loss is on logits vs targets , not using thresholds. after training the logits are concerted to probabilities , which are then put against the thresholds for the binary questions.)
+
+In the code , pr(y>k) is upweighted for rare hazards - combats imbalance (also have WeightedRandomSampler)
+
+Functions:
+
+corn_targets : builds K-1 binary labels for CORN. for each threshold k, target is 1 if y>k else 0
+
+corn_loss : loss function used in training
+
+corn_predict_logits_to_labels : converts logits to class predictions 
+
+```{python}
+import torch, torch.nn as nn, torch.nn.functional as F
+import numpy as np
+from torch.utils.data import TensorDataset, DataLoader, Subset, WeightedRandomSampler
+from sklearn.metrics import accuracy_score, f1_score, cohen_kappa_score
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+K = int(y_tr.max().item()) + 1  # e.g., 5 classes (0..4)
+
+def corn_targets(y, K):
+    ks = torch.arange(K-1, device=y.device).unsqueeze(0).expand(y.size(0), -1)
+    return (y.unsqueeze(1) > ks).float() 
+
+def corn_loss(logits, y, K, pos_weight=None):
+    T = corn_targets(y, K)
+    return F.binary_cross_entropy_with_logits(logits, T, pos_weight=pos_weight)
+
+@torch.no_grad()
+def corn_predict_logits_to_labels(logits, taus=None):
+    p = torch.sigmoid(logits)            
+    if taus is None:
+        taus = torch.full((logits.size(1),), 0.5, device=logits.device)
+    return (p > taus).sum(dim=1)   
+```
+
+## LSTM
+
+```{python}
+
+class LSTM(nn.Module):
+  #set up the arch
+  def __init__(self, dynamic_dim , static_dim, output_dim, hidden_dim, num_hidden_layers, rnn_dropout, head_dropout, bidirectional = False):
+    super().__init__()
+   # self.flatten = nn.Flatten()
+
+    self.rnn = nn.LSTM(dynamic_dim, hidden_size=hidden_dim, num_layers=num_hidden_layers, batch_first=True, dropout=(rnn_dropout if num_hidden_layers > 1 else 0.0)
+                       , bidirectional=bidirectional)
+
+  #will have to alter MLP input dim if bidirectional set to True
+
+    self.head = nn.Sequential(
+            nn.Linear(hidden_dim + static_dim, 64),
+            nn.ReLU(), nn.Dropout(head_dropout))#,
+            #nn.Linear(in_features=64, out_features=output_dim))#,
+            #nn.Softmax(dim = 5))
+
+    #self.corn = CORNHead(64, K)
+    #self.K = K
+    
+    # CORN head: K-1 thresholds
+    self.corn = nn.Linear(64, output_dim-1)
+    self.K = K
+
+
+  def forward(self, X_seq, X_static):
+    _, (hiddenStates,_) = self.rnn(X_seq)
+    z = torch.cat((hiddenStates[-1], X_static), dim=1)
+    z = self.head(z)
+    return self.corn(z)
+
+
+```
+
+Fold wise imbalance for CORN (fights imbalance in the data). Up weights events that are rare , since our data is imbalanced - higher hazard levels rarer. Calculated as number of responses below K reponse over number above - upweights the rarer classes
+Computes one weight per threshold (response value). Makes rare cases matter more in the BCE loss
+
+```{python}
+def corn_pos_weight_cb(y_fold, K=5, beta=0.999, device=device):
+    """
+    Class-balanced 'effective number' weights for CORN thresholds.
+    For threshold k, positives are (y > k).
+    """
+    y_np = y_fold.cpu().numpy()
+    pos = np.array([(y_np > k).sum() for k in range(K-1)], dtype=np.float64)
+    pos = np.clip(pos, 1, None)
+    w = (1 - beta) / (1 - np.power(beta, pos))
+    w = w / w.mean()       # normalize nicely
+    return torch.tensor(w, dtype=torch.float32, device=device)  # (K-1,)
+```
+
+Loads validation fold and evaluates model on it, using ADAM optimiser and CORN for backprop and QWK for validation and early stopping
+
+```{python}
+@torch.no_grad()
+def eval_corn(model, loader, taus=None):
+    model.eval()
+    ys, ps, loss_sum, n = [], [], 0.0, 0
+    for xseq, xsta, y in loader:
+        xseq, xsta, y = xseq.to(device), xsta.to(device), y.to(device)
+        logits = model(xseq, xsta)
+        loss = corn_loss(logits, y, K)
+        pred  = corn_predict_logits_to_labels(logits, taus=taus.to(device) if taus is not None else None)
+        ys.append(y.cpu().numpy()); ps.append(pred.cpu().numpy())
+        loss_sum += loss.item() * y.size(0); n += y.size(0)
+    y_true = np.concatenate(ys); y_pred = np.concatenate(ps)
+    va_loss = loss_sum / max(n,1)
+    acc = accuracy_score(y_true, y_pred)
+    f1  = f1_score(y_true, y_pred, average="macro")
+    mae = np.abs(y_true - y_pred).mean()
+    try: qwk = cohen_kappa_score(y_true, y_pred, weights="quadratic")
+    except: qwk = float("nan")
+    return va_loss, acc, f1, mae, qwk, y_true, y_pred
+
+def fit_one_corn(model, dl_tr, dl_va, y_tr_fold, lr=2e-3, weight_decay=1e-4,
+                 max_epochs=40, patience=6, head_dropout=0.3):  # patience refers to early stopping epochs
+    model = model.to(device)
+    pos_weight = corn_pos_weight_cb(y_tr_fold, K=K, beta=0.999, device=device)
+    opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    best_state, best_metric, bad = None, -1e9, 0
+    for ep in range(1, max_epochs+1):
+        model.train()
+        for xseq, xsta, y in dl_tr:
+            xseq, xsta, y = xseq.to(device), xsta.to(device), y.to(device)
+            logits = model(xseq, xsta)
+            loss = corn_loss(logits, y, K, pos_weight=pos_weight)
+            opt.zero_grad(); loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            opt.step()
+        # validate (no tuned thresholds yet)
+        va_loss, acc, f1, mae, qwk, _, _ = eval_corn(model, dl_va, taus=None)
+        metric = qwk if np.isfinite(qwk) else (acc - mae)  # ordinal-friendly early stop
+        if metric > best_metric + 1e-4:
+            best_metric, bad = metric, 0
+            best_state = {k: v.detach().cpu().clone() for k,v in model.state_dict().items()}
+        else:
+            bad += 1
+            if bad >= patience:
+                break
+    if best_state: model.load_state_dict(best_state)
+    return model
+```
+
+Dataloaders
+
+weighted random sampler rwweights which samples appear in batches so minority classes are more common. Has the effect of making bayches contain more underrepresented classes (increased attention on rare events). 
+
+```{python}
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def make_loaders(Xseq, Xsta, y, tr_idx, va_idx, batch_size):
+    ds = TensorDataset(Xseq, Xsta, y)
+    dl_tr = DataLoader(torch.utils.data.Subset(ds, tr_idx), batch_size=batch_size, shuffle=True)
+    dl_va = DataLoader(torch.utils.data.Subset(ds, va_idx), batch_size=batch_size, shuffle=False)
+    return dl_tr, dl_va
+  
+def make_sampler_from_labels(y_idxed):
+    counts = torch.bincount(y_idxed.cpu(), minlength=K).float().clamp_min(1)
+    cls_w = (len(y_idxed) / (K * counts)).numpy()
+    sample_w = cls_w[y_idxed.cpu().numpy()]
+    return WeightedRandomSampler(sample_w, num_samples=len(sample_w), replacement=True)
+
+
+def loaders_for_fold(tr_idx, va_idx, batch_size=256, oversample=True):
+    ds_tr_all = TensorDataset(Xseq_tr, Xsta_tr, y_tr)
+    y_tr_fold = y_tr[tr_idx]
+    if oversample:
+        sampler = make_sampler_from_labels(y_tr_fold)
+        dl_tr = DataLoader(Subset(ds_tr_all, tr_idx), batch_size=batch_size,
+                           sampler=sampler, drop_last=False)
+    else:
+        dl_tr = DataLoader(Subset(ds_tr_all, tr_idx), batch_size=batch_size,
+                           shuffle=True, drop_last=False)
+    dl_va = DataLoader(Subset(ds_tr_all, va_idx), batch_size=batch_size,
+                       shuffle=False, drop_last=False)
+    return dl_tr, dl_va, y_tr_fold
+```
+
+
+## Hyperparameter tuning
+
+```{python}
+!pip install optuna
+```
+
+
+```{python}
+import optuna
+
+# Build folds 
+folds = make_time_folds(tgt_dates_tr, K=5, gap_days= 10)#14)
+
+def objective(trial):
+    # --- sample hparams ---
+    hidden_dim   = trial.suggest_categorical("hidden_dim", [32, 48, 64])
+    num_layers   = trial.suggest_int("num_layers", 1, 2)
+    rnn_dropout  = trial.suggest_float("rnn_dropout", 0.0, 0.5) if num_layers > 1 else 0.0
+    head_dropout = trial.suggest_float("head_dropout", 0.1, 0.5)
+    lr           = trial.suggest_float("lr", 1e-4, 3e-3, log=True)
+    weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
+    batch_size   = trial.suggest_categorical("batch_size", [128, 256, 512])
+
+    scores = []
+    for (tr_idx, va_idx) in folds:            # or folds[-1:] if you only want the latest fold
+        dl_tr, dl_va, y_tr_fold = loaders_for_fold(tr_idx, va_idx,
+                                                   batch_size=batch_size,
+                                                   oversample=True)
+
+        model = LSTM(dynamic_dim=Xseq_tr.shape[-1],
+                                static_dim=Xsta_tr.shape[-1],
+                                output_dim=int(y_tr.max().item())+1,
+                                hidden_dim=hidden_dim,
+                                num_hidden_layers=num_layers,
+                                rnn_dropout=rnn_dropout,
+                                head_dropout=head_dropout,
+                                bidirectional=False)
+
+        # ⬇⬇ pass y_tr_fold here
+        model = fit_one_corn(model, dl_tr, dl_va, y_tr_fold,
+                             lr=lr, weight_decay=weight_decay,
+                             max_epochs=30, patience=5)
+
+        _, acc, f1, mae, qwk, *_ = eval_corn(model, dl_va)  # taus=None during tuning
+        scores.append(qwk if np.isfinite(qwk) else (acc - mae))
+
+    return float(np.mean(scores))
+
+study = optuna.create_study(direction="maximize")
+study.optimize(objective, n_trials=50, show_progress_bar=True)
+
+print("Best params:", study.best_trial.params)
+print("Best CV score (QWK):", study.best_value)
+
+```
+
+Best params: {'hidden_dim': 32, 'num_layers': 1, 'head_dropout': 0.3472958534673855, 'lr': 0.0028396801498878554, 'weight_decay': 2.2404755878518988e-06, 'batch_size': 256}
+Best CV score (QWK): 0.6344358948490426
+
+Tune CORN Thresholds
+
+Now do small grid search using threholds and final val set (should be most similar to test set) to get final thresholds. Use hyperparameters from early CV to make final model , which will make logits and then probs, but those probs will be converted to classes using these hreholds from final val split
+
+```{python}
+best = study.best_trial.params 
+
+# pick the last fold (most recent dates in train set)
+tr_idx, va_idx = folds[-1]       
+
+# loaders with oversampling - oversample rare hazards
+batch_size = 256
+dl_tr, dl_va, y_tr_fold = loaders_for_fold(tr_idx, va_idx, batch_size=batch_size, oversample=True)
+
+# fit model
+dyn_dim = Xseq_tr.shape[-1]; sta_dim = Xsta_tr.shape[-1]
+model = LSTM(dyn_dim, sta_dim, output_dim=K, hidden_dim=48, num_hidden_layers=best["num_layers"], rnn_dropout= 0, head_dropout=best["head_dropout"]) #best["rnn_dropout"]
+
+# train on latest fold
+model = fit_one_corn(model, dl_tr, dl_va, y_tr_fold, lr= best["lr"], weight_decay=best["weight_decay"], max_epochs=50, patience=8)
+
+# collect validation probabilities
+@torch.no_grad()
+def collect_probs_and_labels(model, loader):
+    model.eval()
+    probs, ys = [], []
+    for xseq, xsta, y in loader:
+        xseq, xsta = xseq.to(device), xsta.to(device)
+        logits = model(xseq, xsta)
+        probs.append(torch.sigmoid(logits).cpu().numpy())  # (B, K-1)
+        ys.append(y.cpu().numpy())
+    return np.vstack(probs), np.concatenate(ys)
+
+probs_val, y_val = collect_probs_and_labels(model, dl_va)
+```
+
+Tune monotone thresholds on latest fold 
+the threholds are monotone - meaning that for the lower classes they must be greater than or equal to those decision boundaries/threholds for the higher classes (so higher classes aren't easier to cross than lower ones)
+
+```{python}
+
+from sklearn.metrics import cohen_kappa_score
+
+def tune_corn_thresholds(probs_val, y_val, grid=np.linspace(0.3, 0.7, 21)):
+    Km1 = probs_val.shape[1]
+    taus = [0.5]*Km1
+    
+    for k in range(Km1):
+        best_tau, best_q = taus[k], -1
+        for t in grid:
+            cand = taus.copy()
+            cand[k] = float(t)
+          
+            for j in range(Km1-2, -1, -1):
+                cand[j] = max(cand[j], cand[j+1])
+            y_pred = (probs_val > np.array(cand)).sum(axis=1)
+            q = cohen_kappa_score(y_val, y_pred, weights="quadratic")
+            if q > best_q:
+                best_q, best_tau = q, cand[k]
+        taus[k] = best_tau
+    taus = np.array(taus, dtype=np.float32)
+    final_q = cohen_kappa_score(y_val, (probs_val > taus).sum(axis=1), weights="quadratic")
+    return taus, final_q
+
+taus, q_val = tune_corn_thresholds(probs_val, y_val)
+print("Tuned taus (monotone):", np.round(taus, 3), " | Val QWK with taus:", round(q_val, 3))
+
+```
+
+Output here are the thresholds used for the different classes
+
+Test set evaluation with thresholds (for converting logits to labels 0..4 from final fold - more representative of test set)
+
+```{python}
+
+# Retrain on *all* training windows (use the same hparams you selected on the latest fold)
+ds_all = TensorDataset(Xseq_tr, Xsta_tr, y_tr)
+# Oversample for all-train too:
+sampler_all = make_sampler_from_labels(y_tr)
+dl_all = DataLoader(ds_all, batch_size=batch_size, sampler=sampler_all, drop_last=False)
+
+# simple early stopping on the last 10% time slice of train to avoid overfit
+N = Xseq_tr.size(0); split = int(N*0.9)
+dl_tr_full = DataLoader(TensorDataset(Xseq_tr[:split], Xsta_tr[:split], y_tr[:split]),
+                        batch_size=batch_size, sampler=make_sampler_from_labels(y_tr[:split]))
+dl_va_full = DataLoader(TensorDataset(Xseq_tr[split:], Xsta_tr[split:], y_tr[split:]),
+                        batch_size=batch_size, shuffle=False)
+
+#do final model fit with best parameters, with small validation tail to detect overfitting
+model_full = LSTM(dyn_dim, sta_dim, output_dim=K, hidden_dim=48, num_hidden_layers=1, rnn_dropout=0, head_dropout=best["head_dropout"]) #best["rnn_dropout"]
+model_full = fit_one_corn(model_full, dl_tr_full, dl_va_full, y_tr[:split],
+                          lr=best["lr"], weight_decay=best["weight_decay"], max_epochs=50, patience=8)
+
+# Evaluate Test using the thresholds (taus) we found on the last fold - most similar to test set
+dl_te = DataLoader(TensorDataset(Xseq_te, Xsta_te, y_te), batch_size=batch_size, shuffle=False)
+
+@torch.no_grad()
+def eval_test_with_taus(model, loader, taus_np):
+    taus_t = torch.tensor(taus_np, dtype=torch.float32, device=device)
+    model.eval()
+    ys, ps, loss_sum, n = [], [], 0.0, 0
+    for xseq, xsta, y in loader:
+        xseq, xsta, y = xseq.to(device), xsta.to(device), y.to(device)
+        logits = model(xseq, xsta)
+        loss = corn_loss(logits, y, K)
+        pred  = corn_predict_logits_to_labels(logits, taus=taus_t)
+        ys.append(y.cpu().numpy()); ps.append(pred.cpu().numpy())
+        loss_sum += loss.item() * y.size(0); n += y.size(0)
+    y_true = np.concatenate(ys); y_pred = np.concatenate(ps)
+    te_loss = loss_sum / max(n,1)
+    acc = accuracy_score(y_true, y_pred)
+    f1  = f1_score(y_true, y_pred, average="macro")
+    mae = np.abs(y_true - y_pred).mean()
+    try: qwk = cohen_kappa_score(y_true, y_pred, weights="quadratic")
+    except: qwk = float("nan")
+    return te_loss, acc, f1, mae, qwk
+
+te_loss, te_acc, te_f1, te_mae, te_qwk = eval_test_with_taus(model_full, dl_te, taus)
+print(f"TEST | loss {te_loss:.3f} acc {te_acc:.3f} f1 {te_f1:.3f} mae {te_mae:.3f} qwk {te_qwk:.3f}")
+
+```
+
+TEST | loss 0.266 acc 0.624 f1 0.326 mae 0.442 qwk 0.482
+
+higher QWK with similar or lower MAE, better calibrated, fewer big jumps
+
+Confusion Matrix
+
+```{python}
+import torch, numpy as np
+from sklearn.metrics import confusion_matrix, classification_report, recall_score
+
+K = 5  # classes 0..4
+
+# collect logits on test
+model.eval()
+logits_list, y_list = [], []
+with torch.no_grad():
+    for xseq, xsta, y in dl_te:  # your test DataLoader
+        xseq, xsta = xseq.to(device), xsta.to(device)
+        logits = model(xseq, xsta)           # (B, K-1)
+        logits_list.append(logits.cpu())
+        y_list.append(y.cpu())
+y_true    = torch.cat(y_list).numpy()
+
+# after inference on test
+with torch.no_grad():
+    logits_te = torch.cat([model(x.to(device), s.to(device)).cpu()
+                           for x,s,_ in dl_te])
+probs_te = torch.sigmoid(logits_te).numpy()     # (N, K-1)
+
+taus = np.array([0.52, 0.50, 0.50, 0.48], dtype=np.float32)   # from your tuning
+y_pred = (probs_te > taus).sum(axis=1)          # <- use taus here
+
+
+from sklearn.metrics import confusion_matrix, classification_report, recall_score
+
+labels = [0,1,2,3,4]  # FAH levels
+
+cm = confusion_matrix(y_true, y_pred, labels=labels)
+print("Confusion matrix (rows=true, cols=pred):\n", cm)
+
+# Per-class precision/recall/F1 and macro/weighted averages:
+print("\nPer-class report:")
+print(classification_report(y_true, y_pred, labels=labels, digits=3))
+
+# If you just want the recall vector (per class):
+recall_per_class = recall_score(y_true, y_pred, labels=labels, average=None)
+print("Recall per class:", recall_per_class)
+```
+
+
+# Majority Baseline
+
+predicts most frequent class from training set
+have a global prediction (most common hazard forecast over whole set vs most common per area)
+
+```{python}
+import numpy as np, pandas as pd
+from sklearn.metrics import accuracy_score, f1_score, cohen_kappa_score
+
+# Global majority from TRAIN labels
+major = train["FAH_ord"].mode().iloc[0]
+y_pred_major = np.full(len(test), major)
+
+# Per-Area majority (a stronger baseline)
+area_cols = [c for c in train.columns if c.startswith("Area_")]
+def area_name(df):
+    idx = df[area_cols].values.argmax(axis=1)
+    return np.array([area_cols[i].replace("Area_","") for i in idx])
+
+train["AreaName"] = area_name(train)
+test["AreaName"]  = area_name(test)
+per_area_major = (train.groupby("AreaName")["FAH_ord"]
+                        .agg(lambda s: s.mode().iloc[0]))
+y_pred_area_major = test["AreaName"].map(per_area_major).fillna(major).to_numpy()
+
+def report(y_true, y_pred, label):
+    acc  = accuracy_score(y_true, y_pred)
+    f1   = f1_score(y_true, y_pred, average="macro")
+    mae  = np.abs(y_true - y_pred).mean()
+    qwk  = cohen_kappa_score(y_true, y_pred, weights="quadratic")
+    print(f"{label:18s} | acc {acc:.3f}  macroF1 {f1:.3f}  MAE {mae:.3f}  QWK {qwk:.3f}")
+
+report(test["FAH_ord"].to_numpy(), y_pred_major,      "Majority (global)")
+report(test["FAH_ord"].to_numpy(), y_pred_area_major, "Majority (per-area)")
+```
+
+Majority (global)  | acc 0.305  macroF1 0.094  MAE 0.735  QWK 0.000
+Majority (per-area) | acc 0.393  macroF1 0.200  MAE 0.755  QWK 0.090
+
+
+# Persistence Baseline 
+
+Predicts todays hazard as the same as previous day
+
+```{python}
+# Build previous-day target per (Area, Date)
+test_sorted = t#est.sort_values(["AreaName","Date"]).copy()
+train_sorted= train.sort_values(["AreaName","Date"]).copy()
+
+# concat to allow the first test day to look back into the end of train
+all_ = pd.concat([train_sorted, test_sorted], ignore_index=True)
+
+# y_prev(t) = y(t-1) within the same Area
+all_["y_prev"] = (all_.groupby("AreaName")["FAH_ord"]
+                     .shift(1))  # NaN for each area's first row
+
+# Extract predictions for test rows only
+persist_pred = all_.loc[all_.index.isin(test_sorted.index), "y_prev"].to_numpy()
+
+# Fallback for the very first day of each area in test (no previous)
+# use that area's majority or global majority
+mask = np.isnan(persist_pred)
+fallback = test_sorted.loc[mask, "AreaName"].map(per_area_major).fillna(major).to_numpy()
+persist_pred[mask] = fallback
+
+report(test_sorted["FAH_ord"].to_numpy(), persist_pred.astype(int), "Persistence (y[t-1])")
+```
+
+Persistence (y[t-1]) | acc 0.203  macroF1 0.139  MAE 1.453  QWK -0.041
+
+Discrepancy between the majority and persistence baselines, and the model's performnace suggests it is better than a naive approach (is learning)
 
