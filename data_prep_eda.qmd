@@ -1,6 +1,15 @@
 ---
 title: "Data Preparation and EDA"
+engine: knitr
 ---
+
+```{r}
+library(reticulate)
+use_condaenv("ds4i-mixed", required = TRUE)
+py_config()
+
+```
+
 
 ```{r echo=F, message = F, warning = F}
 set.seed(5073)
@@ -902,6 +911,26 @@ X_train = read.csv("X_train.csv")
 ```
 
 
+```{bash}
+conda env create -f environment.yml   # or: conda env create -f environment.yml
+conda activate ds4i-mixed
+```
+
+
+```{python}
+import pandas as pd
+
+pd.__version__
+```
+
+```{python}
+
+import torch
+
+```
+
+
+
 ```{python}
 import os
 import torch
@@ -912,59 +941,57 @@ from sklearn.metrics import accuracy_score, f1_score, cohen_kappa_score
 import torch.nn.functional as F
 import numpy as np
 
-from google.colab import files
+#from google.colab import files
 import pandas as pd
 import io
 
-# Prompt the user to upload a file
-#print("Upload Train dataset")
-#uploaded = files.upload()
+import pandas as pd # Example library for loading data
 
-#file_name = next(iter(uploaded))
+#replace with your file path
+file_path = "C:/Users/chris/OneDrive/Documents/UNI/STATS/Masters/DS4I/Assignment/Avalanche-Forecast-Prediction/X_train.csv"
 
-#print(f"\nSuccessfully uploaded: '{file_name}'")
-
-# Read the uploaded CSV file into a pandas DataFrame.
-# The file content is in bytes, so we use io.BytesIO to wrap it
-# so pandas can read it like a regular file.
-# try:
-#   train = pd.read_csv(io.BytesIO(uploaded[file_name]))
-# 
-#   # Display the first 5 rows of the DataFrame to confirm it worked
-#   print("\nHere are the first 5 rows of your data:")
-#   print(train.head())
-# 
-# except Exception as e:
-#   print(f"\nAn error occurred while reading the CSV file: {e}")
-#   print("Please ensure the uploaded file is a valid CSV.")
-
-train = X_train
+# 2. Check if the path is provided
+if file_path:
+    print(f"Attempting to load: {file_path}")
+    
+    # 3. Load the file
+    try:
+        # Note: If the user pastes a Windows path with single backslashes (\), 
+        # Python might need double backslashes (\\) or forward slashes (/) to work correctly.
+        # It's safest to manually replace them or ask the user to use forward slashes.
+        train = pd.read_csv(file_path.replace('\\', '/')) 
+        print("File loaded successfully!")
+        print(train.head())
+    except FileNotFoundError:
+        print("Error: The file path was not found.")
+    except Exception as e:
+        print(f"Error loading file: {e}")
+else:
+    print("No path provided.")
 ```
 
 ```{python}
-# Prompt the user to upload a file
-# print("Upload Test dataset")
-# uploaded = files.upload()
-# 
-# file_name = next(iter(uploaded))
-# 
-# print(f"\nSuccessfully uploaded: '{file_name}'")
-# 
-# # Read the uploaded CSV file into a pandas DataFrame.
-# # The file content is in bytes, so we use io.BytesIO to wrap it
-# # so pandas can read it like a regular file.
-# try:
-#   test = pd.read_csv(io.BytesIO(uploaded[file_name]))
-# 
-#   # Display the first 5 rows of the DataFrame to confirm it worked
-#   print("\nHere are the first 5 rows of your data:")
-#   print(test.head())
-# 
-# except Exception as e:
-#   print(f"\nAn error occurred while reading the CSV file: {e}")
-#   print("Please ensure the uploaded file is a valid CSV.")
-#   
-test = X_test
+#replace with your file path
+file_path = "C:/Users/chris/OneDrive/Documents/UNI/STATS/Masters/DS4I/Assignment/Avalanche-Forecast-Prediction/X_test.csv"
+
+# 2. Check if the path is provided
+if file_path:
+    print(f"Attempting to load: {file_path}")
+    
+    # 3. Load the file
+    try:
+        # Note: If the user pastes a Windows path with single backslashes (\), 
+        # Python might need double backslashes (\\) or forward slashes (/) to work correctly.
+        # It's safest to manually replace them or ask the user to use forward slashes.
+        test = pd.read_csv(file_path.replace('\\', '/')) 
+        print("File loaded successfully!")
+        print(test.head())
+    except FileNotFoundError:
+        print("Error: The file path was not found.")
+    except Exception as e:
+        print(f"Error loading file: {e}")
+else:
+    print("No path provided.")
 ```
 
 Prepare Sequences 
@@ -1082,7 +1109,7 @@ Shows the dimensions of the test and train sequences. For train, 8365 sequences,
 
 
 Example sequence
-```{r}
+```{python}
 print(Xseq_tr[[1]])
 ```
 
@@ -1338,10 +1365,8 @@ def loaders_for_fold(tr_idx, va_idx, batch_size=256, oversample=True):
 
 ## Hyperparameter tuning
 
-```{python}
-!pip install optuna
-```
 
+Don't Run !!!!
 
 ```{python}
 import optuna
@@ -1397,10 +1422,19 @@ Best CV score (QWK): 0.6344358948490426
 
 Tune CORN Thresholds
 
-Now do small grid search using threholds and final val set (should be most similar to test set) to get final thresholds. Use hyperparameters from early CV to make final model , which will make logits and then probs, but those probs will be converted to classes using these hreholds from final val split
+Now do small grid search using threholds and final val set (should be most similar to test set) to get final thresholds. Use hyperparameters from early CV to make final model , which will make logits and then probs, but those probs will be converted to classes using these threholds from final val split
 
 ```{python}
-best = study.best_trial.params 
+#best = study.best_trial.params 
+
+best = {
+  "lr": 0.0028396801498878554,
+  "hidden_dim": 32,
+  "num_layers": 1,
+  "head_dropout": 0.3472958534673855,
+  "weight_decay": 2.2404755878518988e-06,
+  "batch_size": 256
+}
 
 # pick the last fold (most recent dates in train set)
 tr_idx, va_idx = folds[-1]       
@@ -1516,7 +1550,6 @@ te_loss, te_acc, te_f1, te_mae, te_qwk = eval_test_with_taus(model_full, dl_te, 
 print(f"TEST | loss {te_loss:.3f} acc {te_acc:.3f} f1 {te_f1:.3f} mae {te_mae:.3f} qwk {te_qwk:.3f}")
 
 ```
-
 TEST | loss 0.266 acc 0.624 f1 0.326 mae 0.442 qwk 0.482
 
 higher QWK with similar or lower MAE, better calibrated, fewer big jumps

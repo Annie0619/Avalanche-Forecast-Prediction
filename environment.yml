@@ -1,0 +1,27 @@
+name: ds4i-mixed
+channels: [conda-forge]
+dependencies:
+  - python=3.11
+  - r-base=4.3
+  - r-knitr
+  - r-tidyverse
+  - r-reticulate
+  - r-essentials
+  - r-lubridate
+  - r-naniar
+  - r-janitor
+  - r-tidymodels
+  - r-rpart
+  - r-recipes
+  - r-httr2
+  - r-jsonlite
+  - r-themis
+  - pip
+  - pip:
+      - pandas==2.2.2
+      - numpy==2.0.1
+      - matplotlib==3.9.0
+      - torch
+      - torchvision
+      - scikit-learn
+      - optuna
