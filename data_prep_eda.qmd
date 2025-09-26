@@ -7,7 +7,6 @@ engine: knitr
 library(reticulate)
 use_condaenv("ds4i-mixed", required = TRUE)
 py_config()
-
 ```
 
 
@@ -911,27 +910,8 @@ X_train = read.csv("X_train.csv")
 ```
 
 
-```{bash}
-conda env create -f environment.yml   # or: conda env create -f environment.yml
-conda activate ds4i-mixed
-```
-
-
 ```{python}
-import pandas as pd
-
-pd.__version__
-```
-
-```{python}
-
-import torch
-
-```
-
-
-
-```{python}
+import random
 import os
 import torch
 from torch import nn
@@ -1369,6 +1349,7 @@ def loaders_for_fold(tr_idx, va_idx, batch_size=256, oversample=True):
 Don't Run !!!!
 
 ```{python}
+random.seed(20)
 import optuna
 
 # Build folds 
@@ -1425,6 +1406,7 @@ Tune CORN Thresholds
 Now do small grid search using threholds and final val set (should be most similar to test set) to get final thresholds. Use hyperparameters from early CV to make final model , which will make logits and then probs, but those probs will be converted to classes using these threholds from final val split
 
 ```{python}
+random.seed(20)
 #best = study.best_trial.params 
 
 best = {
@@ -1469,7 +1451,7 @@ Tune monotone thresholds on latest fold
 the threholds are monotone - meaning that for the lower classes they must be greater than or equal to those decision boundaries/threholds for the higher classes (so higher classes aren't easier to cross than lower ones)
 
 ```{python}
-
+random.seed(20)
 from sklearn.metrics import cohen_kappa_score
 
 def tune_corn_thresholds(probs_val, y_val, grid=np.linspace(0.3, 0.7, 21)):
@@ -1503,7 +1485,7 @@ Output here are the thresholds used for the different classes
 Test set evaluation with thresholds (for converting logits to labels 0..4 from final fold - more representative of test set)
 
 ```{python}
-
+random.seed(20)
 # Retrain on *all* training windows (use the same hparams you selected on the latest fold)
 ds_all = TensorDataset(Xseq_tr, Xsta_tr, y_tr)
 # Oversample for all-train too:
@@ -1557,6 +1539,7 @@ higher QWK with similar or lower MAE, better calibrated, fewer big jumps
 Confusion Matrix
 
 ```{python}
+random.seed(20)
 import torch, numpy as np
 from sklearn.metrics import confusion_matrix, classification_report, recall_score
 
@@ -1606,6 +1589,7 @@ predicts most frequent class from training set
 have a global prediction (most common hazard forecast over whole set vs most common per area)
 
 ```{python}
+random.seed(20)
 import numpy as np, pandas as pd
 from sklearn.metrics import accuracy_score, f1_score, cohen_kappa_score
 
@@ -1645,6 +1629,7 @@ Majority (per-area) | acc 0.393  macroF1 0.200  MAE 0.755  QWK 0.090
 Predicts todays hazard as the same as previous day
 
 ```{python}
+random.seed(20)
 # Build previous-day target per (Area, Date)
 test_sorted = t#est.sort_values(["AreaName","Date"]).copy()
 train_sorted= train.sort_values(["AreaName","Date"]).copy()
