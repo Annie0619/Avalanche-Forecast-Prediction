@@ -1048,6 +1048,8 @@ if "FAH_prev" not in dynamic_cols:
 
 ```
 
+Makes the sequences for the LSTM, of L length (usually 7, 14)
+
 ```{python}
 L, H = 14, 0  # look-back and horizon
 def build_windows_with_dates(df, L, H, dyn_cols, sta_cols, target_col, date_col):
@@ -1093,6 +1095,8 @@ Example sequence
 print(Xseq_tr[[1]])
 ```
 
+make sure no sequences target dates in test window
+
 ```{python}
 # You already computed this earlier:
 # Xseq_all, Xsta_all, y_all, tgt_dates = build_windows_with_dates(...)
@@ -1115,6 +1119,12 @@ assert len(tgt_dates_te) == y_te.shape[0]
 ```
 
 Break sequences into folds that follow each other (forward chaining) for time aware validation split
+
+each fold strictly goes past to future, and never randomly shuffles
+
+so for fold k, validation is a contiguous block of unique target dates, and training is alll earlier windows except embargo of L (sequence length) days before validation block, which prevents feature leakage 
+
+Is an expanding window so as move forward in time , train includes more history 
 
 ```{python}
 # ---------- 1) Build forward-chaining folds ----------
@@ -1404,6 +1414,8 @@ Best CV score (QWK): 0.6344358948490426
 Tune CORN Thresholds
 
 Now do small grid search using threholds and final val set (should be most similar to test set) to get final thresholds. Use hyperparameters from early CV to make final model , which will make logits and then probs, but those probs will be converted to classes using these threholds from final val split
+
+because test period mix is different (many more 0s), tune the final threholds for the loigit -> predictions step on final val slice , in hopes it most closely resembles the test set
 
 ```{python}
 random.seed(20)
