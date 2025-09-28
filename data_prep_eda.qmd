@@ -1162,7 +1162,7 @@ Using two measures primarly: QWK and CORN
 
 Quadratic Weighted Kappa (QWK) measures agreement between two sets of ordinal ratings (predicted vs forecasted hazard level). Applies quadratic weighting - mistakes that are further apart are more penalised than close ones. lies on -1 to 1
 
-QWK is non-differntiabe (can't be used in backprop), so not used in training only as metric
+QWK is non-differntiable (can't be used in backprop), so not used in training only as metric
 
 Instead train with differentiable loss - CORN. QWK is used for validation and for early stopping
 
