@@ -1,0 +1,1980 @@
+---
+title: "Assignment 1 - Report"
+format: 
+  pdf:
+    pdf-engine: tectonic
+    keep-tex: true
+    include-in-header:
+      text: |
+        \usepackage{microtype}              % better justification
+        \usepackage{xurl}                   % break long URLs
+        \setlength{\emergencystretch}{3em}  % avoid overfull boxes
+        \usepackage{fvextra}                % wrap code blocks
+        \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere}
+filters: 
+  - clean-unicode.lua
+editor: visual
+engine: knitr
+execute:
+  echo: false       # hide code by default (still runs) 
+  message: false
+  warning: false
+  cache: false #true       # speed + reproducibility
+  freeze: false
+---
+
+## Abstract
+
+Forecast avalanche hazard (FAH) is reported on an ordered five-level scale, making the correct ordering of predictions as important as the exact class assignment. We build a modelling-ready dataset from operational observations in Scotland and cast next-day FAH as an ordinal forecasting problem. Data preparation standardises identifiers, audits and repairs missingness, applies physically sensible bounds, encodes circular variables with sine-cosine pairs, and adds seasonal day-of-year features. We split chronologically (80/20) with an embargo to avoid look-ahead.
+
+For modelling, we turn each area's history into 14-day windows of dynamic features, fuse static site attributes, and train an LSTM with a CORN ordinal head that predicts $K - 1$ exceedance probabilities. Class imbalance is handled by oversampling rare classes in minibatches and class-balanced per-threshold weights in the loss. We then tune monotone thresholds on the most recent validation fold to convert probabilities into labels.
+
+Validation uses forward-chaining time folds; evaluation on a held-out test window reports Accuracy, Macro-F1, MAE, and Quadratic Weighted Kappa (QWK). Compared with three simple baselines (global majority, per-area majority, and persistence), the LSTM-CORN model improves ordinal-aware agreement (QWK) and reduces absolute error (MAE), with most mistakes within one level of the truth. Limitations include scarcity of High hazard days and potential sensitivity to the temporal split, but the approach is reproducible and operationally realistic, and it provides a clear path to calibration and extension.
+
+## Introduction
+
+Avalanche hazard is reported on an ordered five-level scale, making the correct ordering of predictions as important as the exact class assignment. According to the Conceptual Model of Avalanche Hazard (Statham et al., 2018), the hazard level is determined by combining two ordinal variables-likelihood of avalanche occurrence and destructive size-into a single danger rating. This motivates treating FAH as an ordinal rather than a nominal target.
+
+This project assembles a modelling-ready dataset from Scottish observations and frames next-day Forecast Avalanche Hazard (FAH) as an ordinal forecasting problem. Data preparation (in R) standardises identifiers, audits and repairs missing values, applies physical plausibility checks, encodes circular angles as sine/cosine, and adds day-of-year seasonality. Model matrices are exported with an ordered target, and a chronological $80/20$ split prevents look-ahead.
+
+Methodologically, we use a sequence model to reflect that hazard depends on recent conditions. We frame each area-day as a one-step-ahead forecast and feed the model a fixed 14-day look-back of daily predictors together with static site attributes. This mirrors the standard time-series set-up in which inputs comprise a recent window of observations plus static metadata (Lim and Zohren, 2021; Eq. 2.1). We implement the encoder with an LSTM over the 14-day window and concatenate the static features before the output layer.
+
+For the ordinal output layer we adopt CORN (Conditional Ordinal Regression for Neural Networks). CORN decomposes a $K$-class ordered target into $K - 1$ conditional exceedance tasks that estimate $P(y > k \mid y > k - 1)$; the unconditional exceedance probabilities $P(y > k)$ follow by the probability chain rule, which guarantees rank-consistent (non-increasing) probabilities across thresholds. Final class labels are obtained by thresholding these $K - 1$ probabilities and counting exceedances (Cao, Mirjalili and Raschka, 2020).
+
+Because High levels are rare, we address class imbalance in two ways. First, we oversample minority classes within batches. Second, we apply the class-balanced loss based on the effective number of samples, which weights each class by $(1 - \beta)/(1 - \beta^{n_c})$ so rare classes have more influence without fabricating data (Cui et al., 2019, Sec. 3).
+
+Validation uses forward-chaining folds with a 10-day embargo to reflect operational constraints. Model performance is evaluated on a held-out test window using Accuracy, Macro-F1, MAE, and Quadratic Weighted Kappa (QWK). Three baseline models are used for comparison: global majority, per-area majority, and persistence (yesterday's value). All code is reproducible, with deterministic seeds and cached lookups, and all preprocessing parameters are fit on the training data and then applied to the test set through a baked pipeline.
+
+## Data & Methods
+
+```{r}
+#| label: setup
+#| include: false
+library(reticulate)
+
+env_name <- "ds4i-mixed"
+
+# 1) Try a system conda first
+conda_bin <- tryCatch(conda_binary("auto"), error = function(e) NA_character_)
+have_env  <- tryCatch(env_name %in% conda_list(conda = conda_bin)$name, error = function(e) FALSE)
+
+if (have_env) {
+  use_condaenv(condaenv = env_name, conda = conda_bin, required = TRUE)
+
+} else {
+  # 2) Ensure reticulate's private Miniconda exists; install if not
+  if (!dir.exists(miniconda_path())) install_miniconda()  # one-time bootstrap
+
+  # Use the reticulate-managed Miniconda explicitly
+  use_miniconda(required = TRUE)
+
+  # Create env if missing, then install Python deps from conda-forge
+  if (!(env_name %in% conda_list()$name)) {
+    conda_create(envname = env_name, packages = "python=3.11", channel = "conda-forge", conda = conda_bin)
+  }
+  conda_install(envname = env_name,
+                packages = c("numpy=2.0","pandas=2.2","matplotlib=3.9",
+                             "scikit-learn","optuna","pytorch","torchvision"),
+                channel = "conda-forge", conda = conda_bin)
+
+  use_condaenv(env_name, conda = conda_bin, required = TRUE)
+}
+
+py_config()  # show the bound Python
+```
+
+### Data
+
+We analysed a 2009-2025 archive of daily avalanche forecasts from the Scottish Avalanche Information Service across six forecasting regions. The prediction target is the forecast avalanche hazard (FAH) for the following day, encoded as an *ordered* categorical variable with levels:
+
+*Low \< Moderate \< Considerable - \< Considerable + \< High*
+
+Predictors comprise:\
+1. **Site and topography** - OS grid identifier, location name, longitude, latitude, altitude, incline.\
+2. **Contemporaneous meteorology** near the forecast location - summit air temperature, summit wind speed and direction, lower-level winds, cloud, and insolation.\
+3. **Snowpack observations** derived from field tests - snow temperature, maximum temperature and hardness gradients, foot and ski penetration indices, crystal type, wetness, and a derived stability index.
+
+To avoid information leakage for the FAH task, the observed hazard on the following day (OAH) was removed from the analysis dataset.
+
+### Methods: Data Preparation, Cleaning, and Pre-processing
+
+```{r }
+# Setup + Read + OAH removal
+# Libraries, seed, and initial read 
+set.seed(5073)
+library(tidyverse)
+library(lubridate)
+library(naniar)
+library(janitor)
+library(tidymodels)
+library(rpart)
+library(recipes)
+library(httr2)
+library(jsonlite)
+library(themis)
+
+aval <- read.csv("scotland_avalanche_forecasts_2009_2025.csv")
+
+### removing OAH (observed next-day hazard) to avoid leakage relative to FAH prediction
+aval <- aval %>% select(-OAH)
+```
+
+#### 1. Type standardisation and initial feature engineering
+
+We converted timestamps to Date and derived year, month, day-of-year (`doy`), and meteorological season (DJF/MAM/JJA/SON). Identifiers and descriptors were given sensible types (e.g., `Area` as a factor; OS grid and location as character). The hazard response was stored as an ordered factor (`FAH_ord`) using the level order defined above. These steps preserve the outcome's ordinal structure for modelling and evaluation and add explicit seasonality features for downstream encoding.
+
+```{r}
+# Types & Engineered Features 
+
+### STEP 1 - Fix types & engineer helper features (with OAH removed)
+aval <- aval %>%
+  mutate(
+    # --- time features ---
+    DateTime = ymd_hms(Date, quiet = TRUE),
+    Date     = as.Date(DateTime),
+    year     = year(Date),
+    month    = month(Date),
+    doy      = yday(Date),
+    season   = factor(case_when(
+      month %in% c(12,1,2) ~ "DJF",
+      month %in% c(3,4,5)  ~ "MAM",
+      month %in% c(6,7,8)  ~ "JJA",
+      TRUE                 ~ "SON"
+    ), levels = c("DJF","MAM","JJA","SON")),
+    # --- categorical / IDs ---
+    Area     = factor(Area),
+    OSgrid   = as.character(OSgrid),
+    Location = as.character(Location),
+    Obs      = factor(Obs),
+    Drift    = factor(Drift),
+    Rain.at.900 = factor(Rain.at.900),
+    # --- hazard (target) as ordered factor ---
+    FAH_ord  = factor(
+      FAH,
+      levels  = c("Low","Moderate","Considerable -","Considerable +","High"),
+      ordered = TRUE
+    )
+  )
+
+```
+
+#### 2. Spatial consistency checks
+
+We examined whether OS grids denote unique points. Longitude and latitude vary within OS grids, indicating that an OS grid represents an area rather than a single coordinate. Altitude is not constant within OS grids. Accordingly, altitude should not be imputed from the OS grid identifier alone: since each grid covers heterogeneous terrain, we instead query elevation using the precise latitude-longitude coordinates.
+
+```{r}
+# Spacial Checks
+
+### Q: Is longitude/latitude constant within OSgrid?
+lonlat_varies <- aval %>%
+  group_by(OSgrid) %>%
+  summarise(n_coords = n_distinct(paste(longitude, latitude)), .groups = "drop") %>%
+  filter(n_coords > 1) %>%
+  nrow() > 0  # TRUE - grids denote areas
+
+### Q: Is Alt constant within OSgrid?
+alt_varies <- aval %>%
+  group_by(OSgrid) %>%
+  summarise(n_alt = n_distinct(Alt), .groups = "drop") %>%
+  filter(n_alt > 1) %>%
+  nrow() > 0  # TRUE = cannot impute Alt from OSgrid alone
+```
+
+#### 3. Record keys, duplicates, and consolidation
+
+We treated (Date, OSgrid, Area) as the record key. For any key with multiple rows, we counted-column by column-how many distinct non-missing values appeared.
+
+-   If the duplicates differed only by missing values, we collapsed them to a single row, taking the first available non-missing value in each column.
+-   If any column showed truly conflicting observations (more than one distinct non-missing value), we kept all rows for that key and flagged the group as conflicted.
+
+This approach preserves genuine differences, avoids inventing data, and leaves a clear audit trail wherever sources disagree.
+
+```{r}
+# Duplicates Handling:
+
+# snapshot of table before any consolodation (for plots in appendix)
+aval_before_dup <- aval
+
+
+### Investigate duplicates and consolidate
+n_before <- nrow(aval)
+key_cols <- c("Date", "OSgrid", "Area")
+non_key_cols <- setdiff(names(aval), key_cols)
+
+### Find keys where *any* column has >1 distinct observed value
+wide_conflicts <- aval %>%
+  group_by(across(all_of(key_cols))) %>%
+  summarise(
+    across(all_of(non_key_cols), ~ n_distinct(na.omit(.x)), .names = "nuniq_{.col}"),
+    .groups = "drop"
+  ) %>%
+  mutate(any_conflict = if_any(starts_with("nuniq_"), ~ .x > 1)) %>%
+  filter(any_conflict) %>%
+  select(all_of(key_cols)) %>%
+  distinct()
+
+### Collapse only conflict-free groups
+first_non_na <- function(x) { i <- which(!is.na(x))[1]; if (is.na(i)) x[NA_integer_] else x[i] }
+
+collapsed_ok <- aval %>%
+  anti_join(wide_conflicts, by = key_cols) %>%
+  group_by(across(all_of(key_cols))) %>%
+  summarise(across(all_of(non_key_cols), first_non_na),
+            .rows_collapsed = dplyr::n(), .groups = "drop")
+
+### Keep conflicting groups as-is
+kept_conflicts <- aval %>% semi_join(wide_conflicts, by = key_cols)
+
+### Combine
+aval <- bind_rows(collapsed_ok %>% select(-.rows_collapsed), kept_conflicts) %>%
+  arrange(across(all_of(key_cols)))
+
+n_after <- nrow(aval)
+n_conflict_rows <- nrow(kept_conflicts)
+dup_summary <- tibble(
+  `Rows before` = n_before,
+  `Rows after`  = n_after,
+  `Conflict rows kept` = n_conflict_rows
+)
+
+
+```
+
+```{r, warning=FALSE, message = FALSE}
+# knitr::kable(dup_summary, caption = "Duplicate handling summary.")
+```
+
+#### 4. Missingness audit and design of indicators
+
+We first measured missingness per variable and inspected its pattern. Where the absence itself could be informative, we created explicit 0/1 "was-missing" flags (before any outlier recoding). These indicators were made for: AV.cat, Ski.pen, Crystals, Wetness, Snow.Index, and the summit weather fields (Summit.Wind.Dir, Summit.Wind.Speed, Summit.Air.Temp). Doing this early ensures the indicators reflect the data as collected and aren't confounded by later plausibility filters.
+
+Some fields (e.g., Max.Temp.Grad, Max.Hardness.Grad) are only measured when a snow pit is carried out. When no pit is done those fields are blank by design, so we did not add extra "missing" indicators; instead, we impute those numeric blanks downstream for modelling.
+
+**Snow.Index check:** Because many values are exactly zero, we tested whether Snow.Index == 0 was being used as a stand-in for "no test." It wasn't: rows with Snow.Index = 0 didn't show elevated missingness in pit variables, so zeros appear to be legitimate measurements (e.g., stable conditions). We therefore kept zeros as valid values and treated only NA as missing.
+
+```{r}
+# Missingness audit + indicators:
+
+### Visualise missingness and create indicators *before* recoding implausible values
+miss_summary <- aval %>%
+  summarise(across(everything(), ~ mean(is.na(.)) * 100)) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "pct_missing") %>%
+  arrange(desc(pct_missing))
+
+aval <- aval %>%
+  mutate(
+    ### informative-missing indicators
+    av_cat_missing_initial            = as.integer(is.na(AV.Cat)),
+    ski_pen_missing_initial           = as.integer(is.na(Ski.Pen)),
+    crystals_missing_initial          = as.integer(is.na(Crystals)),
+    wetness_missing_initial           = as.integer(is.na(Wetness)),
+    snow_index_missing_initial        = as.integer(is.na(Snow.Index)),
+    summit_wind_dir_missing_initial   = as.integer(is.na(Summit.Wind.Dir)),
+    summit_wind_speed_missing_initial = as.integer(is.na(Summit.Wind.Speed)),
+    summit_air_temp_missing_initial   = as.integer(is.na(Summit.Air.Temp))
+  )
+
+```
+
+```{r}
+# knitr::kable(head(miss_summary, 10), caption="Top ten variables by percentage missing.")
+# naniar::vis_miss(aval)
+
+```
+
+#### 5. Physically defensible plausibility filters
+
+We applied conservative real-world plausibility checks and recoded any violations to `NA` so they can be handled by imputation rather than ad-hoc edits. The limits reflect basic constraints (e.g., angles in $0{-}360^\circ$, non-negative depths) and local context.
+
+-   Directional variables (Aspect, Wind.Dir, Summit.Wind.Dir): values outside $[0^\circ, 360^\circ]$ set to `NA`.\
+-   Snow temperature ($^\circ$C): values $> 5$ set to NA (snow cannot persist above $\sim 0^\circ$C; a small buffer accommodates sensor and entry noise).\
+-   Insolation (index): values outside $0{-}20$ set to NA.\
+-   Incline ($^\circ$): values $<0$ or $>90$ set to NA.\
+-   Foot penetration (cm): values $<0$ or $>100$ set to NA.\
+-   Total snow depth (cm): values $<0$ or $>500$ set to NA (regional plausibility).\
+-   Maximum temperature gradient ($^\circ$C/10 cm): values $> 10$ set to NA.\
+-   Altitude (m): values $<0$ or $>1400$ set to NA (Scotland's highest peak $\approx 1345$ m).
+
+Marking impossible readings as `NA` prevents them from skewing summaries or model fits and lets the downstream multivariate imputer estimate plausible replacements from the remaining data.
+
+```{r}
+# Plausibility filters + hidden diagnostics:
+  
+### Cleaning continuous variables - encode non-physical entries as NA
+aval$Ski.Pen[aval$Ski.Pen < 0] <- NA_real_
+aval$Insolation[aval$Insolation < 0 | aval$Insolation > 20] <- NA_real_
+aval$Snow.Temp[aval$Snow.Temp > 5] <- NA_real_
+aval$Aspect[aval$Aspect < 0 | aval$Aspect > 360] <- NA_real_
+aval$Total.Snow.Depth[aval$Total.Snow.Depth < 0 | aval$Total.Snow.Depth > 500] <- NA_real_
+aval$Wind.Dir[aval$Wind.Dir < 0 | aval$Wind.Dir > 360] <- NA_real_
+aval$Summit.Wind.Dir[aval$Summit.Wind.Dir < 0 | aval$Summit.Wind.Dir > 360] <- NA_real_
+aval$Foot.Pen[aval$Foot.Pen < 0 | aval$Foot.Pen > 100] <- NA_real_
+aval$Incline[aval$Incline < 0 | aval$Incline > 90] <- NA_real_
+aval$Max.Temp.Grad[aval$Max.Temp.Grad > 10] <- NA_real_
+aval$Alt[aval$Alt < 0 | aval$Alt > 1400] <- NA_real_
+
+rules_tbl <- tribble(
+ ~Variable, ~Rule, ~Rationale,
+ "Angles (Aspect, Wind.Dir, Summit.Wind.Dir)", "[0,360]", "Invalid angles set to NA",
+ "Snow.Temp (Cel)", "> 5 -> NA", "Snow cannot persist >0C (buffer)",
+ "Insolation (index)", "outside 0-20 -> NA", "Invalid coded range",
+ "Incline (deg)", "<0 or >90 -> NA", "Physical slope limits",
+ "Foot.Pen (cm)", "<0 or >100 -> NA", "Human penetration limits",
+ "Total.Snow.Depth (cm)", "<0 or >500 -> NA", "Regional plausibility",
+ "Max.Temp.Grad (C/10 cm)", ">10 -> NA", "Rare/implausible",
+ "Altitude (m)", "<0 or >1400 -> NA", "Scotland max approx 1345 m"
+)
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.show='hide'}
+
+```
+
+```{r}
+#knitr::kable(rules_tbl, caption="Plausibility rules applied prior to imputation.")
+
+```
+
+#### 6. Altitude repair via coordinate-based elevation lookup
+
+For the small number of missing altitudes, we queried an open elevation service at rounded (`latitude`, `longitude`) and filled `Alt` where a value was returned. One queried coordinate yielded $0$ m (a sea-loch), indicating a geolocation error. For that single case, we replaced the coordinate with the area mean (Creag Meagaidh) and re-queried. To ensure deterministic compilation, elevation results are cached locally; subsequent runs read from cache if the service is unavailable.
+
+```{r}
+### Open-Elevation lookup with simple CSV cache for determinism
+cache_path <- "elev_cache.csv"
+
+oe_lookup_batch <- function(points_df) {
+  if (nrow(points_df) == 0) return(tibble(latitude = numeric(), longitude = numeric(), elev_m = numeric()))
+  locs <- points_df %>%
+    transmute(pair = sprintf("%.6f,%.6f", latitude, longitude)) %>%
+    pull(pair) %>% paste(collapse = "|")
+  url <- paste0("https://api.open-elevation.com/api/v1/lookup?locations=", URLencode(locs))
+  resp <- request(url) |> req_timeout(30) |> req_perform()
+  if (resp_status(resp) != 200) return(tibble(latitude=numeric(), longitude=numeric(), elev_m=numeric()))
+  as_tibble(resp_body_json(resp, simplifyVector = TRUE)$results) %>%
+    transmute(latitude=as.numeric(latitude), longitude=as.numeric(longitude), elev_m=as.numeric(elevation))
+}
+
+oe_lookup <- function(points_df, batch_size = 80, sleep_secs = 1) {
+  pts <- points_df %>%
+    transmute(latitude = round(as.numeric(latitude), 6),
+              longitude = round(as.numeric(longitude), 6)) %>% distinct()
+  batches <- split(pts, ceiling(seq_len(nrow(pts)) / batch_size))
+  res <- map(batches, function(b) { out <- try(oe_lookup_batch(b), silent=TRUE); Sys.sleep(sleep_secs);
+    if (inherits(out,"try-error")) tibble(latitude=numeric(), longitude=numeric(), elev_m=numeric()) else out })
+  bind_rows(res)
+}
+
+to_fill <- aval %>% filter(is.na(Alt)) %>% transmute(latitude, longitude)
+if (nrow(to_fill) > 0) {
+  elev_tbl <- if (file.exists(cache_path)) readr::read_csv(cache_path, show_col_types = FALSE) else {
+    out <- oe_lookup(to_fill); readr::write_csv(out, cache_path); out
+  }
+
+  ### one queried point returned 0 m (sea-loch) - treat as geolocation error
+  zero_pts <- elev_tbl %>% filter(!is.na(elev_m), elev_m == 0) %>%
+    transmute(x = round(longitude, 6), y = round(latitude, 6)) %>% distinct()
+
+  if (nrow(zero_pts) > 0) {
+    ### replace with area mean coordinate and re-query
+    mean_coord <- aval %>%
+      filter(Area == "Creag Meagaidh") %>%
+      summarise(mean_lon = mean(longitude, na.rm = TRUE),
+                mean_lat = mean(latitude,  na.rm = TRUE))
+    aval <- aval %>%
+      mutate(
+        longitude = if_else(round(longitude,6) %in% zero_pts$x & round(latitude,6) %in% zero_pts$y,
+                            mean_coord$mean_lon, longitude),
+        latitude  = if_else(round(longitude,6) %in% zero_pts$x & round(latitude,6) %in% zero_pts$y,
+                            mean_coord$mean_lat, latitude)
+      )
+    # refresh lookup for still-missing Alt
+    to_fill <- aval %>% filter(is.na(Alt)) %>% transmute(latitude, longitude)
+    elev_tbl <- oe_lookup(to_fill); readr::write_csv(elev_tbl, cache_path)
+  }
+
+  elev_lu <- elev_tbl %>% mutate(key = paste0(round(latitude,6), "_", round(longitude,6))) %>%
+    select(key, elev_m)
+  aval_key <- paste0(round(aval$latitude,6), "_", round(aval$longitude,6))
+  alt_from_api <- elev_lu$elev_m[ match(aval_key, elev_lu$key) ]
+  fill_idx <- is.na(aval$Alt) & !is.na(alt_from_api)
+  n_alt_filled <- sum(fill_idx, na.rm = TRUE)
+  aval$Alt[fill_idx] <- alt_from_api[fill_idx]
+} else {
+  n_alt_filled <- 0L
+}
+
+```
+
+#### 7. Circular encodings for directional variables
+
+**Circular encodings for directional variables.** Because angles wrap around at $360^\circ$, treating them as ordinary numbers creates an artificial jump between $359^\circ$ and $0^\circ$. We therefore replaced each directional variable (`Wind.Dir`, `Summit.Wind.Dir`, `Aspect`) with two new variables that locate the direction on the unit circle: the sine and cosine of the angle (in radians). This keeps $0^\circ$ and $360^\circ$ close in feature space, and removes the wrap-around discontinuity, which helps and yields smoother relationships for the models. Missing angles remained missing in both components and were imputed later.
+
+```{r}
+### Encode angles as circular after cleaning
+aval <- aval %>%
+  mutate(
+    Wind.Dir_sin        = if_else(is.na(Wind.Dir), NA_real_, sin(pi * Wind.Dir/180)),
+    Wind.Dir_cos        = if_else(is.na(Wind.Dir), NA_real_, cos(pi * Wind.Dir/180)),
+    Summit.Wind.Dir_sin = if_else(is.na(Summit.Wind.Dir), NA_real_, sin(pi * Summit.Wind.Dir/180)),
+    Summit.Wind.Dir_cos = if_else(is.na(Summit.Wind.Dir), NA_real_, cos(pi * Summit.Wind.Dir/180)),
+    Aspect_sin          = if_else(is.na(Aspect), NA_real_, sin(pi * Aspect/180)),
+    Aspect_cos          = if_else(is.na(Aspect), NA_real_, cos(pi * Aspect/180))
+  )
+
+```
+
+#### 8. Time-aware splitting and leakage control
+
+The data was split chronologically into $80\%$ training and $20\%$ test by calendar time (no overlap).Any rows missing a `Date` or the target (`FAH_ord`) were dropped before the split. We checked class balance in each split; the High level is very rare and does not appear in the test window (so performance on that class cannot be evaluated). All preprocessing steps were fit on the training set only (e.g., imputation, scaling, encoding) and then applied unchanged to the test set. This setup avoids information leakage.
+
+```{r}
+### Chronological split 80/20; drop missing Date/FAH before split
+set.seed(7)
+target_levels <- c("Low","Moderate","Considerable -","Considerable +","High")
+aval <- aval %>% filter(!is.na(Date), !is.na(FAH_ord))
+cut1 <- quantile(aval$Date, probs = 0.80, na.rm = TRUE, type = 1)
+train <- aval %>% filter(Date <= cut1)
+test  <- aval %>% filter(Date >  cut1)
+
+### Class balance (Train/Test)
+train_counts <- table(train$FAH_ord)
+test_counts  <- table(test$FAH_ord)
+class_tab <- rbind(
+  Train = round(100*prop.table(train_counts), 1),
+  Test  = round(100*prop.table(test_counts),  1)
+) %>% as.data.frame()
+
+```
+
+```{r}
+# knitr::kable(class_tab, caption="Class proportions of FAH (train vs test), %.  High is rare and absent in the test window.")
+```
+
+#### 9. Pre-processing pipeline for modelling (recipes)
+
+A single, train-fitted `recipes` pipeline was implemented with the following stages:
+
+1.  **Column exclusion:** Dropped identifiers and free text, raw time stamps, and raw angles: `OSgrid`, `Location`, `Date`, `DateTime`, raw `Wind.Dir`, raw `Summit.Wind.Dir`, and raw `Aspect`. The raw target FAH was excluded in favour of `FAH_ord`.\
+2.  **Rare-level consolidation:** Collapsed very rare categorical levels to `"other"` using $\texttt{threshold} = 0.005$ to avoid sparse dummies.\
+3.  **Imputation:** Categorical variables were imputed by mode; numerical variables by bagged-tree imputation (bootstrap ensembles estimated on the training data), which captures non-linearities and interactions in mixed meteorological and snowpack features more effectively than mean or KNN imputation.\
+4.  **Encoding:** One-hot encoding of categorical predictors (including `Area`).\
+5.  **Variance filtering:** Removal of zero-variance and near-zero-variance predictors.\
+6.  **Scaling:** Standardisation of numerical predictors, excluding the 0/1 informative-missing indicators (and area dummies) to preserve their interpretability.\
+7.  **Seasonality:** Replacement of discrete season dummies with smooth cyclical features $doy\_sin$ and $doy\_cos$ (constructed from day-of-year with leap years handled); season binaries were removed to reduce collinearity.\
+8.  **Target mapping:** The ordered response was mapped once to integers $0{-}4$ to provide a single source of truth for neural-network models.
+
+The recipe was prepped on the training set (estimating imputation models, encoding maps, and scaling parameters) and then baked on both training and test splits to yield model-ready matrices (`x_train`, `x_test`). For downstream modelling and plotting, a `Date` column was retained; final matrices ($X\_{train}$, $X\_{test}$) include the integer-encoded target as the last column.
+
+```{r}
+### Build recipes pipeline (fit on TRAIN only, then bake to both splits)
+drop_cols <- intersect(
+  c("FAH","Date","DateTime","Wind.Dir","Summit.Wind.Dir","Aspect","OSgrid","Location"),
+  names(train)
+)
+
+flag_cols <- grep("(av_cat_missing|ski_pen_missing|crystals_missing|wetness_missing|snow_index_missing|summit_wind_dir_missing|summit_wind_speed_missing|summit_air_temp_missing)",
+                  names(train), value = TRUE)
+
+# Snapshot BEFORE any recipes imputation (for A5 plots) ----
+aval_before_imp <- train
+
+rec <- recipe(FAH_ord ~ ., data = train) %>%
+  step_rm(all_of(drop_cols)) %>%
+  update_role(Area, new_role = "predictor") %>%
+  step_other(all_nominal_predictors(), threshold = 0.005, other = "other") %>%
+  step_impute_mode(all_nominal_predictors()) %>%
+  step_impute_bag(all_numeric_predictors()) %>%
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%
+  step_zv(all_predictors()) %>%
+  step_nzv(all_predictors()) %>%
+  # Exclude informative-missing flags and Area dummies from scaling
+  step_normalize(all_numeric_predictors(), -all_of(flag_cols), -matches("^Area_"))
+
+rec_prep <- prep(rec, training = train, retain = TRUE)
+x_train <- bake(rec_prep, new_data = train)
+x_test  <- bake(rec_prep,  new_data = test)
+
+### Replace discrete seasons with DOY sin/cos (handle leap years)
+add_doy <- function(d) {
+  period <- ifelse(lubridate::leap_year(d), 366, 365)
+  tibble(doy_sin = sin(2*pi*lubridate::yday(d)/period),
+         doy_cos = cos(2*pi*lubridate::yday(d)/period))
+}
+x_train <- bind_cols(x_train, add_doy(train$Date)) %>% select(-starts_with("season_"))
+x_test  <- bind_cols(x_test,  add_doy(test$Date))  %>% select(-starts_with("season_"))
+
+## --- DROP raw calendar helpers ----- #
+x_train <- x_train %>% select(-month, -doy)
+x_test  <- x_test  %>% select(-month, -doy)
+# ------------------------------------ # 
+
+### Map ordered FAH to integers 0..4 ONCE for NN hand-off
+to_int0 <- function(f) as.integer(f) - 1
+X_train <- mutate(x_train, FAH_ord = to_int0(FAH_ord))
+X_test  <- mutate(x_test,  FAH_ord = to_int0(FAH_ord))
+
+### Keep Date for time-aware batching/plots
+X_train <- bind_cols(tibble(Date = train$Date), X_train)
+X_test  <- bind_cols(tibble(Date = test$Date),  X_test)
+
+dims_tbl <- tibble(
+  Split = c("Train","Test"),
+  Rows  = c(nrow(X_train), nrow(X_test)),
+  Cols  = c(ncol(X_train), ncol(X_test))
+)
+na_left <- any(vapply(X_train, function(z) any(is.na(z)), logical(1))) ||
+           any(vapply(X_test,  function(z) any(is.na(z)),  logical(1)))
+
+```
+
+```{r}
+# knitr::kable(dims_tbl, caption="Dimensions of model-ready matrices (after baking and feature additions).")
+```
+
+```{r}
+### Export for cross-language hand-off (version-control these files)
+write.csv(X_train, "X_train.csv", row.names = FALSE)
+write.csv(X_test,  "X_test.csv",  row.names = FALSE)
+```
+
+#### 10. Reproducibility, diagnostics, and assumptions
+
+We fixed random seeds and kept all data-prep and modelling steps in a single scripted pipeline so that results are reproducible across runs. After baking the recipe, there were no remaining missing values in either split. We re-checked the composite key (`Date`, `OSgrid`, `Area`) after duplicate handling, and we spot-checked distributions of imputed variables to make sure they looked reasonable (plots not shown for space). Elevation queries are cached locally, so reruns do not depend on the external service.
+
+Our working assumptions were:\
+(i) the value ranges we used to flag implausible measurements reflect Scottish conditions;\
+(ii) `Snow.Index == 0` is a **valid zero** (stable conditions), not a stand-in for "no test"; and\
+(iii) the "informative-missing" indicators genuinely capture absence at the time of collection rather than artefacts created later in cleaning.
+
+#### 11. Limitations and sensitivity considerations
+
+The High hazard class is rare (and absent in our test window) so standard accuracy alone can be misleading. We therefore report macro-averaged scores and discuss calibration in the results, but performance on the very rarest conditions remains uncertain. The plausibility cut-offs (e.g., the threshold for snow temperature) are conservative choices, not unique truths; reasonable alternatives could be used, and results may shift slightly.\
+Finally, because we split by time, outcomes can vary with the split date (e.g., if conditions change from one season to the next). This is typical in operational forecasting; sensitivity checks (e.g., alternate split points or small variations in thresholds and look-back length) would be a natural extension.
+
+### Methods: Neural ordinal forecasting model
+
+This stage uses Python (PyTorch) to learn an ordinal mapping from the feature set prepared in R to the next-day hazard level (FAH). We (i) convert the tabular data into area-wise sequences with a 14-day look-back, (ii) train an LSTM + CORN head (Cumulative Ordinal Regression for Neural networks), (iii) handle imbalance by oversampling and class-balanced per-threshold weights, and (iv) tune monotone decision thresholds for converting CORN probabilities to class labels.
+
+OR:
+
+We model next-day FAH (levels $0$-$4$) as an ordinal problem in PyTorch (Python). From the R-prepared matrices we build area-wise 14-day look-back sequences and train an LSTM with a CORN head (Cumulative Ordinal Regression for Neural Networks). We address class imbalance via oversampling and class-balanced per-threshold weights, then tune monotone (non-increasing) thresholds to turn CORN probabilities into class labels. Validation is time-aware (forward-chaining folds with a 10-day embargo), and early stopping uses Quadratic Weighted Kappa (QWK).
+
+```{python}
+## Imports & data ingest (from R exports)
+
+# Reproducible, quiet imports
+import os, random, numpy as np, pandas as pd
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader, Subset, WeightedRandomSampler
+from sklearn.metrics import accuracy_score, f1_score, cohen_kappa_score
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+random.seed(20); np.random.seed(20); torch.manual_seed(20)
+
+# Expect the CSVs written by the R pipeline to be in the project folder
+train = pd.read_csv("X_train.csv")
+test  = pd.read_csv("X_test.csv")
+
+### ensure Date is parsed (robust to column order)
+if "Date" in train.columns:
+    train["Date"] = pd.to_datetime(train["Date"])
+    test["Date"]  = pd.to_datetime(test["Date"])
+else:
+    raise ValueError("Date column not found in X_train / X_test.")
+
+target_col = "FAH_ord"
+
+```
+
+```{python}
+# Shape Peek (can move to Appendix if want)
+# print("Train shape:", train.shape, " | Test shape:", test.shape)
+# print("Target min/max:", train[target_col].min(), train[target_col].max())
+```
+
+#### 1. Data interface and temporal windows
+
+We read the preprocessed matrices exported from R (`X_train.csv`, `X_test.csv`). The response is the ordered integer `FAH_ord \in \{0, \ldots, 4\}` and a `Date` column is retained for temporal alignment.
+
+For sequential learning we constructed area-wise sliding windows with look-back $L = 14$ days and horizon $H = 0$ (predict today's FAH from the previous 14 days) (Lim and Zohren, 2021; Eq. 2.1). Predictors were split into:
+
+-   **Static features** (fed once per window): longitude, latitude, altitude, incline, and the one-hot area indicators.\
+-   **Dynamic features** (fed as a length-$L$ ($14$) sequence): all remaining numeric predictors after excluding static variables and the target. We also engineered `FAH_prev` (yesterday's (FAH) hazard within the same area) and included it among the dynamic features. It is available operationally and does not leak future labels.\
+
+The train/test boundary follows the R split ($80\%$ earliest dates for training; remaining $20\%$ for testing). Windows are built after concatenating and then filtering by the **target date** so that nothing from the test period influences training.
+
+```{python}
+## Sequence Construction & Feature Partition
+
+### Prepare Sequences
+# area one-hots created in R begin with "Area_"
+area_cols   = [c for c in train.columns if c.startswith("Area_")]
+static_num  = [c for c in ["longitude","latitude","Alt","Incline"] if c in train.columns]
+static_cols = static_num + area_cols                          # fed once per window
+
+# dynamic = all numeric minus target and static
+def numeric_cols(df): return df.select_dtypes(include=[np.number]).columns.tolist()
+ban = set([target_col]) | set(static_cols)
+dynamic_cols = [c for c in numeric_cols(train) if c not in ban]
+
+# attach origin flag and unify for windowing; keep test boundary timestamp
+train["_src"] = "train"; test["_src"] = "test"
+df = pd.concat([train, test], ignore_index=True)
+test_start_ts = pd.to_datetime(test["Date"]).min()
+
+# area id from one-hots (argmax)
+df["__area_id__"] = np.argmax(df[area_cols].values, axis=1)
+
+### add in previous forecast to predict next forecast
+df = df.sort_values(["__area_id__", "Date"])
+df["FAH_prev"] = (df.groupby("__area_id__")[target_col].shift(1).astype("float32")).fillna(0.0)
+if "FAH_prev" not in dynamic_cols:
+    dynamic_cols.append("FAH_prev")
+
+```
+
+```{python}
+## Sliding windows (L=14, H=0) and Split
+### window builder with target dates preserved
+
+L, H = 14, 0
+
+def build_windows_with_dates(df, L, H, dyn_cols, sta_cols, target_col):
+    X_seq, X_sta, y, tgt_dates = [], [], [], []
+    for _, g in df.groupby("__area_id__", sort=False):
+        g = g.sort_values("Date")
+        dyn = g[dyn_cols].to_numpy(np.float32)
+        sta = g[sta_cols].to_numpy(np.float32)
+        yy  = g[target_col].to_numpy(np.int64)
+        dd  = g["Date"].to_numpy("datetime64[ns]")
+        for t in range(L+H, len(g)):
+            X_seq.append(dyn[t-L-H:t-H])
+            X_sta.append(sta[t])
+            y.append(yy[t])
+            tgt_dates.append(dd[t])
+    return (torch.tensor(np.stack(X_seq)),
+            torch.tensor(np.stack(X_sta)),
+            torch.tensor(np.array(y)),
+            np.array(tgt_dates))
+
+Xseq_all, Xsta_all, y_all, tgt_dates = build_windows_with_dates(
+    df, L, H, dynamic_cols, static_cols, target_col
+)
+
+# train/test split by target date (same boundary as R)
+test_start_np = np.datetime64(test_start_ts, 'ns')
+is_test  = tgt_dates >= test_start_np
+is_train = ~is_test
+
+Xseq_tr, Xsta_tr, y_tr = Xseq_all[is_train], Xsta_all[is_train], y_all[is_train]
+Xseq_te, Xsta_te, y_te = Xseq_all[is_test],  Xsta_all[is_test],  y_all[is_test]
+
+```
+
+```{python}
+## Show shapes - maybe appendix
+# print("Train:", Xseq_tr.shape, Xsta_tr.shape, y_tr.shape, "| Test:", Xseq_te.shape, Xsta_te.shape, y_te.shape)
+```
+
+#### 2. Architecture and loss (CORN-LSTM)
+
+The network is an **LSTM** over the dynamic sequence. We take its last hidden state, concatenate it with the static features, pass it through a small MLP head, and then through a CORN layer.
+
+-   **CORN (Formulation and Rationale):** Instead of a single $K$-way softmax, CORN produces $K - 1$ logits that answer ordered questions $\Pr(y > 0)$, $\Pr(y > 1)$, $\ldots$, $\Pr(y > K - 2)$. Because these events become harder as $k$ grows, their probabilities naturally decrease with $k$ (Cao, Mirjalili and Raschka, 2020).
+-   **Training:** We compute CORN targets from the true class and minimise binary cross-entropy on the $K - 1$ logits.
+-   **Prediction:** At inference, we threshold the $K - 1$ probabilities, count how many exceed their thresholds, and that count is the predicted FAH level.
+-   **Validation metric:** We report **Quadratic Weighted Kappa (QWK)**, which rewards getting close on an ordinal scale (e.g., a $2 \leftrightarrow 3$ mistake is penalised less than $0 \leftrightarrow 4$).
+
+```{python}
+## Ordinal machinery (CORN targets, loss, prediction)
+
+### Using two measures primarily: QWK (validation metric) and CORN (training loss)
+K = int(y_tr.max().item()) + 1  # number of classes (0..4)
+
+def corn_targets(y, K):
+    ks = torch.arange(K-1, device=y.device).unsqueeze(0).expand(y.size(0), -1)
+    return (y.unsqueeze(1) > ks).float()
+
+def corn_loss(logits, y, K, pos_weight=None):
+    T = corn_targets(y, K)
+    return F.binary_cross_entropy_with_logits(logits, T, pos_weight=pos_weight)
+
+@torch.no_grad()
+def corn_predict_logits_to_labels(logits, taus=None):
+    p = torch.sigmoid(logits)
+    if taus is None:
+        taus = torch.full((logits.size(1),), 0.5, device=logits.device)
+    return (p > taus).sum(dim=1)
+
+```
+
+```{python}
+## LSTM model and class imbalance handling
+
+## LSTM
+class LSTM(nn.Module):
+    def __init__(self, dynamic_dim , static_dim, output_dim, hidden_dim, num_hidden_layers,
+                 rnn_dropout, head_dropout, bidirectional=False):
+        super().__init__()
+        self.rnn = nn.LSTM(dynamic_dim, hidden_size=hidden_dim, num_layers=num_hidden_layers,
+                           batch_first=True, dropout=(rnn_dropout if num_hidden_layers > 1 else 0.0),
+                           bidirectional=bidirectional)
+        self.head = nn.Sequential(nn.Linear(hidden_dim + static_dim, 64),
+                                  nn.ReLU(), nn.Dropout(head_dropout))
+        # CORN head: produces K-1 logits
+        self.corn = nn.Linear(64, output_dim-1)
+        self.K = output_dim
+
+    def forward(self, X_seq, X_static):
+        _, (hiddenStates,_) = self.rnn(X_seq)
+        z = torch.cat((hiddenStates[-1], X_static), dim=1)
+        z = self.head(z)
+        return self.corn(z)
+
+### Fold-wise imbalance for CORN (positives are y>k)
+def corn_pos_weight_cb(y_fold, K=5, beta=0.999, device=device):
+    y_np = y_fold.cpu().numpy()
+    pos = np.array([(y_np > k).sum() for k in range(K-1)], dtype=np.float64)
+    pos = np.clip(pos, 1, None)
+    w = (1 - beta) / (1 - np.power(beta, pos))
+    w = w / w.mean()
+    return torch.tensor(w, dtype=torch.float32, device=device)
+
+```
+
+#### 3. Class imbalance handling
+
+High hazard levels are rare. We address this imbalance in two ways:
+
+1.  **Batch oversampling:** Oversampling in the training loader (`WeightedRandomSampler`) to increase the frequency of rarer FAH levels during optimisation, so minority levels appear more often in batches.\
+2.  **Class-balanced CORN loss:** For each threshold $k$, we compute a positive weight using the "effective number of samples" ($\beta = 0.999$) and apply it in the BCE term, so rare exceedance events $(y > k)$ contribute proportionally more without duplicating data (Cui et al., 2019).
+
+```{python}
+## Dataloaders, training loop, and validation routine (+ sampler)
+
+def make_sampler_from_labels(y_idxed):
+    counts = torch.bincount(y_idxed.cpu(), minlength=K).float().clamp_min(1)
+    cls_w = (len(y_idxed) / (K * counts)).numpy()
+    sample_w = cls_w[y_idxed.cpu().numpy()]
+    return WeightedRandomSampler(sample_w, num_samples=len(sample_w), replacement=True)
+
+def loaders_for_fold(tr_idx, va_idx, batch_size=256, oversample=True):
+    ds_all = TensorDataset(Xseq_tr, Xsta_tr, y_tr)
+    y_tr_fold = y_tr[tr_idx]
+    if oversample:
+        sampler = make_sampler_from_labels(y_tr_fold)
+        dl_tr = DataLoader(Subset(ds_all, tr_idx), batch_size=batch_size,
+                           sampler=sampler, drop_last=False)
+    else:
+        dl_tr = DataLoader(Subset(ds_all, tr_idx), batch_size=batch_size,
+                           shuffle=True, drop_last=False)
+    dl_va = DataLoader(Subset(ds_all, va_idx), batch_size=batch_size,
+                       shuffle=False, drop_last=False)
+    return dl_tr, dl_va, y_tr_fold
+
+@torch.no_grad()
+def eval_corn(model, loader, taus=None):
+    model.eval()
+    ys, ps, loss_sum, n = [], [], 0.0, 0
+    for xseq, xsta, y in loader:
+        xseq, xsta, y = xseq.to(device), xsta.to(device), y.to(device)
+        logits = model(xseq, xsta)
+        loss = corn_loss(logits, y, K)
+        pred  = corn_predict_logits_to_labels(logits, taus=taus.to(device) if taus is not None else None)
+        ys.append(y.cpu().numpy()); ps.append(pred.cpu().numpy())
+        loss_sum += loss.item() * y.size(0); n += y.size(0)
+    y_true = np.concatenate(ys); y_pred = np.concatenate(ps)
+    va_loss = loss_sum / max(n,1)
+    acc = accuracy_score(y_true, y_pred)
+    f1  = f1_score(y_true, y_pred, average="macro")
+    mae = np.abs(y_true - y_pred).mean()
+    try: qwk = cohen_kappa_score(y_true, y_pred, weights="quadratic")
+    except: qwk = float("nan")
+    return va_loss, acc, f1, mae, qwk, y_true, y_pred
+
+def fit_one_corn(model, dl_tr, dl_va, y_tr_fold, lr=2e-3, weight_decay=1e-4, 
+                 max_epochs=40, patience=6):
+    model = model.to(device)
+    pos_weight = corn_pos_weight_cb(y_tr_fold, K=K, beta=0.999, device=device)
+    opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    best_state, best_metric, bad = None, -1e9, 0
+    for ep in range(1, max_epochs+1):
+        model.train()
+        for xseq, xsta, y in dl_tr:
+            xseq, xsta, y = xseq.to(device), xsta.to(device), y.to(device)
+            logits = model(xseq, xsta)
+            loss = corn_loss(logits, y, K, pos_weight=pos_weight)
+            opt.zero_grad(); loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            opt.step()
+        # early stopping on ordinal-friendly metric
+        va_loss, acc, f1, mae, qwk, _, _ = eval_corn(model, dl_va, taus=None)
+        metric = qwk if np.isfinite(qwk) else (acc - mae)
+        if metric > best_metric + 1e-4:
+            best_metric, bad = metric, 0
+            best_state = {k: v.detach().cpu().clone() for k,v in model.state_dict().items()}
+        else:
+            bad += 1
+            if bad >= patience:
+                break
+    if best_state: model.load_state_dict(best_state)
+    return model
+
+```
+
+```{python}
+## corn_pos_weight_cb
+def corn_pos_weight_cb(y_fold, K=5, beta=0.999, device=device):
+    """
+    Class-balanced 'effective number' weights for CORN thresholds.
+    For threshold k, positives are (y > k).
+    """
+    y_np = y_fold.cpu().numpy()
+    pos = np.array([(y_np > k).sum() for k in range(K-1)], dtype=np.float64)
+    pos = np.clip(pos, 1, None)
+    w = (1 - beta) / (1 - np.power(beta, pos))
+    w = w / w.mean()       # normalize nicely
+    return torch.tensor(w, dtype=torch.float32, device=device)  # (K-1,)
+```
+
+#### 4. Validation protocol, hyperparameter search, and early stopping
+
+We created **forward-chaining time folds** ($K=5$) with a **10-day embargo** before each validation slice to avoid look-ahead leakage. We tuned hyperparameters with **Optuna** over:
+
+-   hidden size $\{32, 48, 64\}$,\
+-   number of LSTM layers $\{1, 2\}$,\
+-   head dropout $[0.1, 0.5]$,\
+-   RNN dropout (only if $\geq 2$ layers),
+-   learning rate $[10^{-4}, 3 \times 10^{-3}]$,\
+-   weight decay $[10^{-6}, 10^{-3}]$,\
+-   batch size $\{128, 256, 512\}$.
+
+The objective was to maximise the mean QWK across folds. Training used Adam, gradient-norm clipping (1.0), and early stopping on validation QWK. After selection, the model was refit on all training windows and thresholds were calibrated on the most recent validation fold, then fixed for test.
+
+```{python}
+## Time-aware validation folds (forward chaining with embargo)
+
+### Break sequences into folds that follow each other (forward chaining)
+def make_time_folds(dates, K=5, gap_days=10):
+    """Return list of (train_idx, val_idx) respecting time and a gap to prevent leakage."""
+    dates = np.array(dates)
+    uniq = np.unique(dates)
+    cuts = np.quantile(np.arange(len(uniq)), np.linspace(0,1,K+1)).round().astype(int)
+    folds = []
+    for k in range(K):
+        start_u, end_u = cuts[k], cuts[k+1]
+        val_days = set(uniq[start_u:end_u])
+        if not val_days: 
+            continue
+        val_mask = np.array([d in val_days for d in dates])
+        gap_mask = dates >= (np.datetime64(uniq[start_u]) - np.timedelta64(gap_days, 'D'))
+        train_mask = (~val_mask) & (~gap_mask) & (dates < np.max(list(val_days)))
+        tr_idx = np.where(train_mask)[0]
+        va_idx = np.where(val_mask)[0]
+        if len(tr_idx) and len(va_idx):
+            folds.append((tr_idx, va_idx))
+    return folds
+
+# Derive fold dates aligned with y_tr
+tgt_dates_tr = tgt_dates[is_train]
+folds = make_time_folds(tgt_dates_tr, K=5, gap_days=10)
+
+```
+
+```{python, eval = FALSE}
+## Optuna - Hyperparameter tuning with time-fold CV
+
+### Hyperparameter tuning (Optuna) - DON'T RUN BY DEFAULT
+# import optuna, numpy as np, random
+# random.seed(20)
+# 
+# def objective(trial):
+#     hidden_dim   = trial.suggest_categorical("hidden_dim", [32, 48, 64])
+#     num_layers   = trial.suggest_int("num_layers", 1, 2)
+#     rnn_dropout  = trial.suggest_float("rnn_dropout", 0.0, 0.5) if num_layers > 1 else 0.0
+#     head_dropout = trial.suggest_float("head_dropout", 0.1, 0.5)
+#     lr           = trial.suggest_float("lr", 1e-4, 3e-3, log=True)
+#     weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
+#     batch_size   = trial.suggest_categorical("batch_size", [128, 256, 512])
+# 
+#     scores = []
+#     for (tr_idx, va_idx) in folds:
+#         dl_tr, dl_va, y_tr_fold = loaders_for_fold(tr_idx, va_idx, batch_size=batch_size, oversample=True)
+#         model = LSTM(dynamic_dim=Xseq_tr.shape[-1], static_dim=Xsta_tr.shape[-1],
+#                      output_dim=int(y_tr.max().item())+1, hidden_dim=hidden_dim,
+#                      num_hidden_layers=num_layers, rnn_dropout=rnn_dropout,
+#                      head_dropout=head_dropout, bidirectional=False)
+#         model = fit_one_corn(model, dl_tr, dl_va, y_tr_fold, lr=lr, weight_decay=weight_decay,
+#                              max_epochs=30, patience=5)
+#         _, acc, f1, mae, qwk, *_ = eval_corn(model, dl_va)
+#         scores.append(qwk if np.isfinite(qwk) else (acc - mae))
+#     return float(np.mean(scores))
+# 
+# study = optuna.create_study(direction="maximize")
+# study.optimize(objective, n_trials=50, show_progress_bar=True)
+# best = study.best_trial.params
+
+```
+
+#### 5. Threshold calibration (monotone $\tau$)
+
+CORN outputs $K - 1$ probabilities. To turn them into labels, we tune monotone thresholds $\tau_1 \ge \tau_2 \ge \cdots \ge \tau_{K-1}$ on the latest validation fold using a simple grid over $0.3$-$0.7$, selecting the vector that maximises QWK. The monotonicity is non-increasing because $\Pr(y > k)$ decreases with $k$; later thresholds should never be easier to exceed than earlier ones.
+
+The tuned vector used for test was:
+
+$$
+\tau = [0.52, \; 0.50, \; 0.50, \; 0.48].
+$$
+
+```{python}
+random.seed(2025)
+## Threshold tuning on latest fold (montone tau) and final refit
+
+# Choose the latest time fold for calibration
+tr_idx, va_idx = folds[-1]
+dl_tr, dl_va, y_tr_fold = loaders_for_fold(tr_idx, va_idx, batch_size=256, oversample=True)
+
+# Use tuned settings from CV; if you didn't run Optuna now, set them explicitly:
+# best = {"hidden_dim":48, "num_layers":1, "rnn_dropout":0.0, "head_dropout":0.35,
+        #"lr":2.8e-3, "weight_decay":2.2e-6, "batch_size":256}
+
+best = {
+  "lr": 0.0028396801498878554,
+  "hidden_dim": 32, # I did write 48 in the write-up above - need check this because used both 32 and 48
+  "num_layers": 1,
+  "rnn_dropout": 0.0,
+  "head_dropout": 0.3472958534673855,
+  "weight_decay": 2.2404755878518988e-06,
+  "batch_size": 256
+}
+
+# Fit on latest fold
+model = LSTM(dynamic_dim=Xseq_tr.shape[-1], static_dim=Xsta_tr.shape[-1], output_dim=K,
+             hidden_dim=best["hidden_dim"], num_hidden_layers=best["num_layers"],
+             rnn_dropout=best["rnn_dropout"], head_dropout=best["head_dropout"])
+model = fit_one_corn(model, dl_tr, dl_va, y_tr_fold, lr=best["lr"], weight_decay=best["weight_decay"],
+                     max_epochs=50, patience=8)
+
+
+# Collect probabilities on that validation fold
+@torch.no_grad()
+def collect_probs_and_labels(model, loader):
+    model.eval()
+    probs, ys = [], []
+    for xseq, xsta, y in loader:
+        xseq, xsta = xseq.to(device), xsta.to(device)
+        logits = model(xseq, xsta)
+        probs.append(torch.sigmoid(logits).cpu().numpy())
+        ys.append(y.cpu().numpy())
+    return np.vstack(probs), np.concatenate(ys)
+
+probs_val, y_val = collect_probs_and_labels(model, dl_va)
+
+### Tune monotone thresholds (grid over 0.3..0.7)
+def tune_corn_thresholds(probs_val, y_val, grid=np.linspace(0.3, 0.7, 21)):
+    Km1 = probs_val.shape[1]
+    taus = [0.5]*Km1
+    for k in range(Km1):
+        best_tau, best_q = taus[k], -1
+        for t in grid:
+            cand = taus.copy(); cand[k] = float(t)
+            # enforce monotonicity
+            for j in range(Km1-2, -1, -1):
+                cand[j] = max(cand[j], cand[j+1])
+            y_pred = (probs_val > np.array(cand)).sum(axis=1)
+            q = cohen_kappa_score(y_val, y_pred, weights="quadratic")
+            if q > best_q: best_q, best_tau = q, cand[k]
+        taus[k] = best_tau
+    taus = np.array(taus, dtype=np.float32)
+    return taus
+
+taus = tune_corn_thresholds(probs_val, y_val)
+
+# if want to save the results
+# persist for Results
+# import os, np
+# os.makedirs("artifacts", exist_ok=True)
+# np.save("artifacts/taus.npy", taus)
+
+```
+
+#### 6. Final refit and test evaluation
+
+We refit the model on all training windows, keeping a small, chronological $90/10$ tail for early stopping. We then evaluate once on the held-out test windows using the fixed $\tau$ vector above. Metrics reported are Accuracy, Macro-F1, MAE, and QWK, and include a confusion matrix and a per-class report in the Results.
+
+```{python}
+import random
+random.seed(2025)
+## Final train on all training windows and hold-out test evaluation
+
+# Oversampled full-train loader with a small time tail for early stopping
+N = Xseq_tr.size(0); split = int(N*0.9)
+dl_tr_full = DataLoader(TensorDataset(Xseq_tr[:split], Xsta_tr[:split], y_tr[:split]),
+                        batch_size=best["batch_size"],
+                        sampler=make_sampler_from_labels(y_tr[:split]))
+dl_va_full = DataLoader(TensorDataset(Xseq_tr[split:], Xsta_tr[split:], y_tr[split:]),
+                        batch_size=best["batch_size"], shuffle=False)
+
+model_full = LSTM(dynamic_dim=Xseq_tr.shape[-1], static_dim=Xsta_tr.shape[-1], output_dim=K,
+                  hidden_dim=best["hidden_dim"], num_hidden_layers=best["num_layers"],
+                  rnn_dropout=best["rnn_dropout"], head_dropout=best["head_dropout"])
+                  
+                  
+model_full = fit_one_corn(model_full, dl_tr_full, dl_va_full, y_tr[:split],
+                          lr=best["lr"], weight_decay=best["weight_decay"],
+                          max_epochs=50, patience=8)
+
+# Test loader and evaluation with tuned taus
+dl_te = DataLoader(TensorDataset(Xseq_te, Xsta_te, y_te),
+                   batch_size=best["batch_size"], shuffle=False)
+
+@torch.no_grad()
+def eval_test_with_taus(model, loader, taus_np):
+    taus_t = torch.tensor(taus_np, dtype=torch.float32, device=device)
+    model.eval()
+    ys, ps, loss_sum, n = [], [], 0.0, 0
+    for xseq, xsta, y in loader:
+        xseq, xsta, y = xseq.to(device), xsta.to(device), y.to(device)
+        logits = model(xseq, xsta)
+        loss = corn_loss(logits, y, K)
+        pred  = corn_predict_logits_to_labels(logits, taus=taus_t)
+        ys.append(y.cpu().numpy()); ps.append(pred.cpu().numpy())
+        loss_sum += loss.item() * y.size(0); n += y.size(0)
+    y_true = np.concatenate(ys); y_pred = np.concatenate(ps)
+    te_loss = loss_sum / max(n,1)
+    acc = accuracy_score(y_true, y_pred)
+    f1  = f1_score(y_true, y_pred, average="macro")
+    mae = np.abs(y_true - y_pred).mean()
+    try: qwk = cohen_kappa_score(y_true, y_pred, weights="quadratic")
+    except: qwk = float("nan")
+    return dict(loss=float(te_loss), acc=float(acc), f1=float(f1),
+                mae=float(mae), qwk=float(qwk), y_true=y_true, y_pred=y_pred)
+
+test_out = eval_test_with_taus(model_full, dl_te, taus)
+# Persist metrics for the Results section (loaded and printed there)
+# pd.Series({k:v for k,v in test_out.items() if k not in ["y_true","y_pred"]}).to_json("test_metrics.json")
+# np.savez_compressed("test_preds_ytrue.npz", y_pred=test_out["y_pred"], y_true=test_out["y_true"], taus=taus)
+
+import os, json
+os.makedirs("artifacts", exist_ok=True)
+pd.Series({k:v for k,v in test_out.items() if k not in ["y_true","y_pred"]}).to_json("artifacts/test_metrics.json")
+np.savez_compressed("artifacts/test_preds_ytrue.npz",
+                    y_pred=test_out["y_pred"], y_true=test_out["y_true"], taus=taus)
+
+
+```
+
+```{python}
+random.seed(2025)
+## Confusion matrix & per-class report (for RESULTS section later)
+from sklearn.metrics import confusion_matrix, classification_report
+import numpy as np
+
+y_true = np.asarray(test_out["y_true"])
+y_pred = np.asarray(test_out["y_pred"])
+
+cm = confusion_matrix(y_true, y_pred, labels=[0,1,2,3,4])
+report_txt = classification_report(y_true, y_pred, labels=[0,1,2,3,4], digits=3)
+
+np.savetxt("artifacts/confusion_matrix.csv", cm, fmt="%d", delimiter=",")
+with open("artifacts/class_report.txt","w") as f:
+    f.write(report_txt)
+
+# (Optionally print to console while drafting)
+# print(cm)
+# print(report_txt)
+
+# keeps everything reproducible and avoids threshold mismatches
+
+```
+
+#### 7. Baselines
+
+For context, we implemented three simple non-parametric reference models as baselines (all fitted only on training labels).
+
+(i) a **global majority** classifier that predicts the most frequent FAH level in the training labels,\
+(ii) a **per-area majority** classifier that uses the most frequent FAH level within each area (assigned to that area in test), and\
+(iii) a **persistence** rule $\hat{y}_t = y_{t-1}$ within area, with a majority fallback for an area's first test day.
+
+We report the same metrics used for the neural model (Accuracy, Macro-F1, MAE, QWK) to enable direct comparison.
+
+```{python}
+random.seed(2025)
+## Baselines
+
+import numpy as np, pandas as pd, json, os
+from sklearn.metrics import accuracy_score, f1_score, cohen_kappa_score
+
+# --- helpers ---------------------------------------------------------------
+def metrics(y_true, y_pred):
+    y_true = np.asarray(y_true); y_pred = np.asarray(y_pred)
+    return {
+        "acc": float(accuracy_score(y_true, y_pred)),
+        "macroF1": float(f1_score(y_true, y_pred, average="macro")),
+        "MAE": float(np.abs(y_true - y_pred).mean()),
+        "QWK": float(cohen_kappa_score(y_true, y_pred, weights="quadratic"))
+    }
+
+# Ensure expected columns exist
+assert "FAH_ord" in train.columns and "FAH_ord" in test.columns
+
+# --- Majority (global) -----------------------------------------------------
+### global majority from TRAIN labels (no peeking)
+major = train["FAH_ord"].mode().iloc[0]
+y_pred_major = np.full(len(test), major, dtype=int)
+maj_global = metrics(test["FAH_ord"].to_numpy(), y_pred_major)
+
+# --- Majority (per-area) ---------------------------------------------------
+### area names reconstructed from one-hots (consistent with earlier code)
+area_cols = [c for c in train.columns if c.startswith("Area_")]
+def area_name(df):
+    idx = df[area_cols].values.argmax(axis=1)
+    return np.array([area_cols[i].replace("Area_", "") for i in idx])
+
+train = train.copy(); test = test.copy()
+train["AreaName"] = area_name(train)
+test["AreaName"]  = area_name(test)
+
+### per-area majority estimated on TRAIN only
+per_area_major = (train.groupby("AreaName")["FAH_ord"]
+                        .agg(lambda s: s.mode().iloc[0]))
+y_pred_area_major = test["AreaName"].map(per_area_major).fillna(major).to_numpy()
+maj_area = metrics(test["FAH_ord"].to_numpy(), y_pred_area_major)
+
+# --- Persistence baseline ---------------------------------------------------
+### predict today's hazard as yesterday's within area; fallback to area majority on first day
+test_sorted  = test.sort_values(["AreaName","Date"]).copy()
+train_sorted = train.sort_values(["AreaName","Date"]).copy()
+
+# concat to allow first test day to look back into the tail of train
+all_ = pd.concat([train_sorted, test_sorted], ignore_index=True)
+all_["y_prev"] = all_.groupby("AreaName")["FAH_ord"].shift(1)
+
+# extract predictions for the test rows (aligned by index positions in the concatenated frame)
+mask_test = np.r_[np.zeros(len(train_sorted), dtype=bool), np.ones(len(test_sorted), dtype=bool)]
+persist_pred = all_.loc[mask_test, "y_prev"].to_numpy()
+
+# fallback for the first test day per area (no previous)
+missing = np.isnan(persist_pred)
+fallback = test_sorted.loc[missing, "AreaName"].map(per_area_major).fillna(major).to_numpy()
+persist_pred[missing] = fallback
+persist = metrics(test_sorted["FAH_ord"].to_numpy(), persist_pred.astype(int))
+
+# --- Save for Results -------------------------------------------------------
+baseline_metrics = {
+    "majority_global": maj_global,
+    "majority_per_area": maj_area,
+    "persistence": persist
+}
+os.makedirs("artifacts", exist_ok=True)
+with open("artifacts/baseline_metrics.json", "w") as f:
+    json.dump(baseline_metrics, f, indent=2)
+
+### if you want a quick sanity print while developing, uncomment:
+### print(json.dumps(baseline_metrics, indent=2))
+
+
+```
+
+## Results
+
+We evaluate the tuned LSTM-CORN on the held-out test window and compare it with three simple baselines.\
+All settings were fixed before touching the test set. We report Accuracy, Macro-F1, MAE, and Quadratic Weighted Kappa (QWK);\
+a confusion matrix and per-class summary show where errors occur.
+
+```{python}
+random.seed(2025)
+import json, pandas as pd
+
+with open("artifacts/test_metrics.json") as f:
+    m = json.load(f)
+model_row = {"Model": "LSTM-CORN (tuned $\\tau$)",
+             "acc": m["acc"], "macroF1": m["f1"], "MAE": m["mae"], "QWK": m["qwk"]}
+
+with open("artifacts/baseline_metrics.json") as f:
+    base = json.load(f)
+
+rows = [model_row]
+rows += [
+    {"Model": "Majority (global)",   **base["majority_global"]},
+    {"Model": "Majority (per-area)", **base["majority_per_area"]},
+    {"Model": "Persistence (y[t-1])",**base["persistence"]},
+]
+tbl = pd.DataFrame(rows)[["Model","acc","macroF1","MAE","QWK"]]
+tbl
+
+```
+
+### Validation Set-Up
+
+We validated with forward-chaining time folds and a 10-day embargo between training and validation windows, ensuring the model never "sees" information from the future of the validation period. Hyperparameters maximised mean QWK across folds, and after selection, we recalibrated thresholds on the most recent fold (the one closest in time to the test window).
+
+```{python}
+# Renders a small schematic string so the choices are explicit in the report
+print("Validation = forward-chaining (K=5) with 10-day embargo; objective = mean QWK across folds.")
+```
+
+### Class Balance: Train vs Test
+
+Higher hazard levels are rare, and the distribution also shifts over time. In our split the High level does not occur in the test window, which matters for both training and evaluation. The table below shows the proportion of each FAH level within each split (percents within Train/Test):
+
+```{python}
+import pandas as pd, numpy as np, json, os
+
+def _safe_load_df(path):
+    if os.path.exists(path):
+        df = pd.read_csv(path)
+        if "Date" in df: df["Date"] = pd.to_datetime(df["Date"])
+        return df
+    return None
+
+# Prefer in-memory if present; else fall back to CSVs.
+try:
+    _train, _test = train.copy(), test.copy()
+except NameError:
+    _train = _safe_load_df("X_train.csv")
+    _test  = _safe_load_df("X_test.csv")
+
+assert _train is not None and _test is not None, "Need X_train.csv and X_test.csv."
+
+def class_table(df, name):
+    ct = (df["FAH_ord"]
+          .value_counts(dropna=False).sort_index()
+          .rename_axis("FAH").reset_index(name="count"))
+    ct["split"] = name
+    tot = ct["count"].sum()
+    ct["pct"] = (100*ct["count"]/tot).round(1)
+    return ct
+
+ct_train = class_table(_train, "Train")
+ct_test  = class_table(_test,  "Test")
+class_balance = pd.concat([ct_train, ct_test], ignore_index=True)
+#class_balance
+```
+
+```{python}
+#| label: tbl:class-balance
+#| tbl-cap: "FAH class balance by split (row counts and percent within split)."
+#| echo: false
+
+# Neat names + percent formatting
+nice = (
+    class_balance
+      .rename(columns={"FAH":"FAH level", "count":"Rows", "split":"Split", "pct":"% of split"})
+      .assign(**{"% of split": lambda d: d["% of split"].round(1)})
+)
+
+# Turn 57.3 -> "57.3%"
+nice["% of split"] = nice["% of split"].map(lambda x: f"{x:.1f}%")
+
+# Quarto will render this as a numbered table with the caption above
+#nice
+
+
+```
+
+```{python}
+#| label: tbl:class-balance-wide
+#| tbl-cap: "FAH class balance by split."
+#| echo: false
+
+wide = (
+    class_balance.assign(pct=lambda d: d["pct"].round(1))
+      .pivot(index="FAH", columns="split", values=["count","pct"])
+      .sort_index()
+)
+
+# Flatten the multi-index columns into readable names
+wide.columns = [f"{b} {'rows' if a=='count' else '%'}" for a,b in wide.columns]
+wide = wide.reset_index().rename(columns={"FAH":"FAH level"})
+
+# Format percentages
+for col in wide.columns:
+    if col.endswith("%"):
+        wide[col] = wide[col].map(lambda x: f"{x:.1f}%")
+
+wide
+
+```
+
+The **training set** shows a relatively balanced distribution across Levels 0-2 (approximately $26\%$-$31\%$ each), with Level 3 at around \$ 10% \$ and Level 4 at \$ 5% \$ . The \*\*test set\*\*, however, is heavily skewed: Level 0 dominates ( \$ \approx 57% \$ ), followed by Level 1 (\$ 31% \$ ), Level 2 (\$ 8% \$ ), Level 3 ( \$ 4% \$ ), and Level 4 is virtually absent ( \$\sim 0% \$).
+
+This shift has important implications. A naive model that predicts Level 0 can achieve high Accuracy despite poor overall performance. Macro-F1 and QWK are therefore more informative, as they weight classes evenly and penalise larger ordinal errors. To address the imbalance, the training procedure uses oversampling and a class-balanced CORN loss, while threshold calibration on the final fold helps adapt the decision rule to the test distribution.
+
+```{python}
+#| fig-cap: "Bar Plot illustrating FAH class balance by split."
+# simple bar plot
+import matplotlib.pyplot as plt
+
+def plot_class_dist(df):
+    fig = plt.figure(figsize=(5,3.2))
+    for i, split in enumerate(["Train","Test"]):
+        sub = df[df["split"]==split]
+        plt.plot(sub["FAH"], sub["pct"], marker="o", label=split)
+    plt.xlabel("FAH level"); plt.ylabel("% of rows"); plt.title("Class balance by split")
+    plt.legend(); plt.tight_layout(); plt.show()
+
+plot_class_dist(class_balance)
+
+```
+
+### Test Performance (Model vs Baselines)
+
+Below we compare the tuned LSTM-CORN model with three simple baselines. We evaluate performance using four metrics: **Accuracy**, **Macro-F1**, **Mean Absolute Error (MAE)**, and **Quadratic Weighted Kappa (QWK)**. Accuracy measures the proportion of exact predictions but can be misleading under class imbalance (e.g., always predicting the majority class). Macro-F1 computes precision and recall per class, takes their harmonic mean, and averages equally across classes. This handles imbalance better but ignores class ordering. MAE uses the ordinal scale directly, averaging absolute differences between true and predicted levels (e.g., a miss of $0 \to 1$ counts as 1, while $0 \to 4$ counts as 4), with a range from $0$ to $K - 1$. QWK is a chance-corrected agreement measure that penalises larger ordinal gaps using quadratic weights. It ranges from 1 (perfect) to 0 (chance) and can be less than 0 (worse than chance), making it well suited to ordinal targets and useful for validation.
+
+```{python}
+# Load metrics from artifacts (written by your training code)
+with open("artifacts/test_metrics.json") as f:
+    model_m = json.load(f)
+with open("artifacts/baseline_metrics.json") as f:
+    base_m = json.load(f)
+
+rows = [
+    {"Model":"LSTM-CORN (tuned $\\tau$)",
+     "acc":model_m["acc"], "macroF1":model_m["f1"],
+     "MAE":model_m["mae"], "QWK":model_m["qwk"]},
+    {"Model":"Majority (global)",   **base_m["majority_global"]},
+    {"Model":"Majority (per-area)", **base_m["majority_per_area"]},
+    {"Model":"Persistence (y[t-1])",**base_m["persistence"]},
+]
+results_tbl = pd.DataFrame(rows)[["Model","acc","macroF1","MAE","QWK"]]
+results_tbl
+
+```
+
+On the held-out test window, the **persistence rule** (predict today as yesterday within area) is the strongest comparator:\
+\$ \text{QWK} \approx 0.659 \$, \$ \text{Accuracy} \approx 0.719 \$, \$ \text{MAE} \approx 0.329 \$, \$ \text{Macro-F1} \approx 0.456\$ The tuned LSTM-CORN improves markedly over the two majority heuristics but does not reach persistence, with \$ \text{QWK} \approx 0.390 \$, \$ \text{Accuracy} \approx 0.648 \$, \$ \text{MAE} \approx 0.433 \$, and \$ \text{Macro-F1} \approx 0.295 \$.\
+The majority baselines are near chance in ordinal agreement (global \$ \text{QWK} \approx 0 \$; per-area \$ \text{QWK} \approx 0.09 \$), confirming that always picking the common class is not competitive.
+
+To read these numbers: **QWK** (Quadratic Weighted Kappa) is our most appropriate headline metric because it respects ordering, penalising large misses more than adjacent ones (higher is better). **MAE** reports the average absolute distance between forecast and truth on the 0-4 scale (lower is better). **Accuracy** is exact-match rate and can look flattering under imbalance, while **Macro-F1** balances precision and recall across classes by giving each class equal weight.
+
+The pattern suggests the test period is highly persistent and skewed toward lower hazard-there are no "High" days-so copying yesterday is often correct and unusually hard to beat. Although the neural model learns meaningful ordinal structure (clear gains over majority rules), it trails persistence on this particular window, likely due to strong day-to-day autocorrelation and a distribution shift between train and test.
+
+Class-wise performance is therefore uneven, with under-prediction at the upper levels and most errors occurring between adjacent categories-which QWK appropriately down-weights. In practice, persistence remains the operational benchmark in stable regimes, while the LSTM-CORN is most promising for anticipating changes in hazard; we examine this further via the confusion matrix and per-class summaries.
+
+```{python}
+#| warning: false
+#| message: false
+#| fig-cap: "Bar Chart depicting the QWK of the tuned LSTM-CORN model compared to the three simple baselines."
+# quick bar chart of QWK
+import matplotlib.pyplot as plt
+fig = plt.figure(figsize=(6,3))
+plt.bar(results_tbl["Model"], results_tbl["QWK"])
+plt.title("QWK by model"); plt.ylabel("QWK"); plt.xticks(rotation=20, ha="right")
+plt.tight_layout(); plt.show()
+
+```
+
+### Confusion Matrix and Per-Class Report
+
+```{python}
+# import numpy as np
+# from sklearn.metrics import confusion_matrix, classification_report
+# 
+# # Re-load from artifacts (written earlier)
+# cm = np.loadtxt("artifacts/confusion_matrix.csv", delimiter=",", dtype=int)
+# print("Confusion matrix (rows = true, cols = pred):\n", cm)
+# 
+# with open("artifacts/class_report.txt") as f:
+#     print(f.read())
+
+```
+
+The matrix shows a clear **ordinal pattern**. Class 0 is predicted well (about $0.90$ on the diagonal), with a small spill into class 1. For class 1, only $\sim 0.39$ stays on the diagonal, and $\sim 0.58$ is pushed down to 0; the model tends to **under-forecast** when conditions are near the 0/1 boundary. Class 2 is mostly confused with undefined ($\approx 0.47$) and sometimes with 0 ($\approx 0.37$); only $\sim 0.16$ is correct. Class 3 is rarely predicted directly ($\sim 0.15$ diagonal) and is most often mapped to 1 ($\approx 0.52$) or 0 ($\approx 0.31$). There is effectively no reliable signal for class 4 in the test window (support is 1 and it is predicted as a 1), so per-class scores for 4 are unstable and shouldn't be over-interpreted.
+
+This pattern matches the aggregate metrics reported earlier: overall accuracy and MAE are reasonable, but Macro-F1 and QWK suffer because the model compresses higher hazards toward the centre/lower classes. In other words, most errors are one-step, downward mistakes, good for avoiding extreme over-calls but conservative relative to true highs.
+
+If the operational goal is to catch more 2-3 days (accepting some extra false alarms), you could lower the upper CORN thresholds slightly or use a cost-sensitive tuning target. If the priority is minimising over-warnings, the current calibration is aligned with that objective.
+
+```{python}
+#| label: tbl:per-class
+#| results: asis
+# Per-class precision/recall/F1/support as a LaTeX table (no tabulate needed)
+
+import numpy as np, pandas as pd
+from sklearn.metrics import classification_report
+
+# y_true/y_pred already in memory; if not, load:
+try:
+    y_true, y_pred
+except NameError:
+    z = np.load("artifacts/test_preds_ytrue.npz")
+    y_true, y_pred = z["y_true"], z["y_pred"]
+
+rep = classification_report(y_true, y_pred, labels=[0,1,2,3,4],
+                            output_dict=True, zero_division=0)
+order = ["0","1","2","3","4","accuracy","macro avg","weighted avg"]
+df = (pd.DataFrame(rep).T.loc[order]
+        .reset_index().rename(columns={"index":"Class"}))
+
+# tidy + round
+cols = ["Class","precision","recall","f1-score","support"]
+df = df[cols]
+df[["precision","recall","f1-score"]] = df[["precision","recall","f1-score"]].round(3)
+df["support"] = df["support"].astype(int)
+
+latex = df.to_latex(
+    index=False,
+    caption="Per-class precision, recall, F1 and support on the test set.",
+    label="tbl:per-class",
+    escape=False
+)
+#print(latex)
+
+```
+
+```{python}
+#| label: fig:cm-normalised
+#| fig-cap: "Normalised confusion matrix for the test set (rows sum to 1). Numbers in cells are proportions."
+#| fig-width: 5
+#| fig-height: 4.5
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
+
+# If cm isn't already in memory, rebuild it from y_true/y_pred (or load CSV)
+cm = confusion_matrix(y_true, y_pred, labels=[0,1,2,3,4])
+cm_norm = cm / cm.sum(axis=1, keepdims=True)
+
+fig = plt.figure(figsize=(5.0, 4.5), dpi=300)
+ax = plt.gca()
+
+# More readable colour map (user request)
+im = ax.imshow(cm_norm, cmap="Blues", vmin=0, vmax=1, interpolation="nearest")
+
+# Axes / ticks
+classes = [0,1,2,3,4]
+ax.set_xticks(range(len(classes))); ax.set_xticklabels(classes)
+ax.set_yticks(range(len(classes))); ax.set_yticklabels(classes)
+ax.set_xlabel("Predicted"); ax.set_ylabel("True")
+ax.set_title("Normalised confusion matrix")
+
+# Annotate each cell with proportion
+for i in range(cm_norm.shape[0]):
+    for j in range(cm_norm.shape[1]):
+        val = cm_norm[i, j]
+        # pick text color based on background lightness
+        color = "white" if val > 0.5 else "black"
+        ax.text(j, i, f"{val:.2f}", ha="center", va="center", color=color, fontsize=9)
+
+# Colorbar
+cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+cb.set_label("Proportion within true class", rotation=90)
+
+plt.tight_layout()
+plt.show()
+
+```
+
+The matrix shows most mistakes are near-misses (adjacent categories), which is consistent with the model optimising an ordinal metric.
+
+```{python}
+#| warning: false
+#| message: false
+# Normalised confusion matrix heatmap (row-normalised)
+# import matplotlib.pyplot as plt
+# cm_sum = cm.sum(axis=1, keepdims=True)
+# cm_norm = cm / np.maximum(cm_sum, 1)
+# 
+# fig = plt.figure(figsize=(4.6,4))
+# plt.imshow(cm_norm, interpolation="nearest")
+# plt.title("Normalised confusion matrix"); plt.xlabel("Predicted"); plt.ylabel("True")
+# plt.xticks(range(5), range(5)); plt.yticks(range(5), range(5))
+# for i in range(5):
+#     for j in range(5):
+#         plt.text(j, i, f"{cm_norm[i,j]:.2f}", ha="center", va="center")
+# plt.tight_layout(); plt.show()
+
+```
+
+### Effect of Threshold Calibration
+
+Tuned monotone thresholds are intended to improve ordinal agreement over the default $0.5$ cut-offs.
+
+```{python}
+# Recompute test predictions with (a) tuned taus and (b) flat 0.5 to show the gain.
+# This cell expects `model_full`, `dl_te`, and `taus` still in memory.
+# If not, skip or re-run the training cell before this section.
+
+from sklearn.metrics import cohen_kappa_score, accuracy_score, f1_score, mean_absolute_error
+import torch
+
+def predict_with_taus(model, loader, taus_vec):
+    t = torch.tensor(taus_vec, dtype=torch.float32, device=device)
+    ys, preds = [], []
+    model.eval()
+    with torch.no_grad():
+        for xseq, xsta, y in loader:
+            xseq, xsta = xseq.to(device), xsta.to(device)
+            logits = model(xseq, xsta)
+            p = torch.sigmoid(logits)
+            pred = (p > t).sum(dim=1).cpu().numpy()
+            ys.append(y.numpy()); preds.append(pred)
+    y_true = np.concatenate(ys); y_pred = np.concatenate(preds)
+    return y_true, y_pred
+
+try:
+    y_true_tau, y_pred_tau = predict_with_taus(model_full, dl_te, taus)
+    y_true_05,  y_pred_05  = predict_with_taus(model_full, dl_te, np.full_like(taus, 0.5))
+
+    def summarise(y_true, y_pred):
+        return dict(
+            acc=accuracy_score(y_true, y_pred),
+            macroF1=f1_score(y_true, y_pred, average="macro"),
+            MAE=mean_absolute_error(y_true, y_pred),
+            QWK=cohen_kappa_score(y_true, y_pred, weights="quadratic")
+        )
+
+    comp = pd.DataFrame([{"Cutoffs":"tuned $\tau$", **summarise(y_true_tau, y_pred_tau)},
+                         {"Cutoffs":"0.5 flat", **summarise(y_true_05,  y_pred_05)}])
+    comp
+except NameError:
+    print("Note: model_full/dl_te/taus not found in memory - skip this cell or re-run training.")
+
+```
+
+We re-evaluated the test set twice: once using the tuned monotone thresholds $\tau = [0.52, 0.50, 0.50, 0.48]$\
+and once using flat $0.5$ cut-offs for all CORN logits. The two runs produced **identical** results:\
+Accuracy $= 0.648$, Macro-F1 $= 0.295$, MAE $= 0.433$, QWK $= 0.390$.
+
+This tells us that, on this test window, threshold calibration **did not change any predicted labels**.\
+That is consistent with two facts: (i) the tuned $\tau$ are very close to $0.5$, and (ii) most cumulative probabilities were far from the decision boundaries, so nudging thresholds within $0.48$-$0.52$ doesn't flip classes.
+
+This implies the model's test performance is driven by the sequence model and learned representations, rather than by the post-hoc thresholds. We keep the tuned $\tau$ for completeness and because they can help when class balance shifts, but we do **not** claim a test-set gain from calibration here. If thresholding becomes more influential (e.g., under stronger distribution shift), broader grids, direct QWK optimisation, or area-specific $\tau$ could be explored.
+
+### Error Shape
+
+```{python}
+#| label: Error_shape
+#| fig-cap: "Histogram of absolute errors $|y_{\\text{true}} - y_{\\text{pred}}|$ on the test set. Bars are centred at integer steps. Most errors are within one category, consistent with MAE $\\approx 0.43$."
+
+# Uses the predictions saved earlier
+nz = np.load("artifacts/test_preds_ytrue.npz")
+ae = np.abs(nz["y_true"] - nz["y_pred"])
+print("Mean abs error:", ae.mean(), " | Median abs error:", np.median(ae))
+import matplotlib.pyplot as plt
+fig = plt.figure(figsize=(5,3))
+plt.hist(ae, bins=[-0.5,0.5,1.5,2.5,3.5,4.5], rwidth=0.9)
+plt.xticks([0,1,2,3,4]); plt.xlabel("|True - Pred|"); plt.ylabel("Count")
+plt.title("Absolute error on test"); plt.tight_layout(); plt.show()
+
+```
+
+The figure above shows the distribution of absolute errors $|y_{\text{true}} - y_{\text{pred}}|$ across FAH levels.\
+The model achieves an exact match on about 65% of test days (error $= 0$), and a further $\sim 28$-$29\%$ are off by one category. Only $\sim 6\%$ are off by two and $<1\%$ by three; no four-step errors occur.
+
+This aligns with the summary statistics (MAE $\approx 0.43$, median absolute error $\approx 0$):\
+in an ordinal setting, most misclassifications are near misses. Operationally, this means the model is usually within one hazard step of the issued level, even when it is wrong.
+
+## Discussion
+
+The held-out results paint a clear picture. Hazards in this period are highly persistent and skewed toward the lower levels, and the naive persistence rule ("predict today as yesterday within area") performs very strongly on all summary metrics. Our tuned LSTM-CORN improves markedly over the two majority baselines, but it does not beat persistence on this particular test window.
+
+### Metrics & Diagnostics
+
+Accuracy and MAE are reasonable for the neural model, but the QWK and macro-F1 show performance drops higher up the scale. This is consistent with the near-diagonal confusion matrix that has a downward bias (Level 1 is often pushed to 0; Levels 2-3 are frequently mapped to 1) while extreme over-calls are rare. The error histogram shows most misses are within one category (consistent with MAE $\approx 0.43$): useful for avoiding false alarms, but conservative relative to true highs. Finally, threshold calibration had almost no effect (tuned $\tau \approx [0.52, 0.50, 0.50, 0.48]$ and gave identical results to 0.5), which implies the limiting factor is representation/sequence learning, not the label cut-offs.
+
+### Why persistence wins here
+
+Two data realities favour the $y[t-1]$ rule:\
+(i) **strong day-to-day autocorrelation** in FAH;\
+(ii) **imbalance and shift:** the test window contains no "High" days and is dominated by Levels 0-1. In that regime, copying yesterday is genuinely hard to beat. The LSTM-CORN learns the ordinal structure and avoids wild swings, but with few upper-level examples and a short 14-day context, it struggles to escalate to 2-3 when the series does move.
+
+### Operational interpretation
+
+If the near-term goal is to minimise false alarms, the current calibration is acceptable: errors are mostly one-step and downward. If instead the priority is to catch emerging higher hazards, you would tolerate more false positives and lower the effective thresholds for the top levels (a cost-sensitive calibration). Either way, persistence remains a strong benchmark, and the neural-persistence disagreements are useful review flags.
+
+### Limitations
+
+Conclusions are conditioned on this split: the test window lacks class 4 entirely and has very few class 3 days, so per-class scores at the top end are unstable. The dataset is modest for sequence models, labels may contain operational noise, and we restricted the model to observed histories (no external forecasts), which caps lead-time sensitivity. We mitigated leakage with forward-chaining folds and an embargo, but results will vary with split point and winter severity.
+
+### Possible Future Improvements
+
+Short-to-medium steps that fit the current pipeline: - **Longer and/or multi-scale context** (e.g., 28-45 days plus recent 7-day summary features) to help detect trend changes.\
+- **Area- or season-specific calibration** of $\tau$, or a simple **cost-sensitive threshold** that weights upward errors more heavily.\
+- **Richer dynamics**: include forecasted weather (when available) and simple change features (day-to-day deltas, 7-day slopes).\
+- **Ordinal-aware loss variants** (e.g., ordinal focal/Tversky) to emphasise rare upward moves without exploding false alarms.\
+- **Modeling with persistence** rather than against it: feed $y[t-1]$ explicitly (we already include it) and/or ensemble the neural model with the persistence rule; use the ensemble to trigger escalation only when both agree.
+
+For this winter slice, FAH rewards yesterday-equals-today. The LSTM-CORN gives mostly one-step, conservative predictions and clearly outperforms majority rules, but not persistence. With more imbalance-aware training, longer context, and cost-sensitive calibration or ensembling, it should provide earlier and more reliable hazard signals while retaining low false-alarm rates.
+
+## Conclusion
+
+This work developed a reproducible pipeline for ordinal avalanche forecasting, combining structured data preparation, time-aware validation, and an LSTM-CORN model adjusted for class imbalance and monotone decision thresholds. On the held-out test window, the neural model outperforms both majority baselines but does not surpass persistence. This is expected given the strong day-to-day autocorrelation and the concentration of FAH at lower levels during this period.
+
+The diagnostics are consistent with this outcome. The confusion matrix is near-diagonal with a slight downward bias, MAE ($\approx 0.43$) indicates that most errors fall within one category, and threshold calibration has negligible effect. This suggests that the main limitations lie in the data regime and sequence representation rather than in the choice of decision cut-offs.
+
+From an operational perspective, the model is conservative and unlikely to produce extreme over-warnings. Its greatest value is in cases where it diverges from persistence, indicating potential changes in hazard. Sensitivity to rising risk could be improved through longer or multi-scale look-back periods, cost-sensitive or area- and season-specific calibration, the inclusion of forecasted weather and change features, and the use of ordinal focal or Tversky losses, or ensembling with persistence.
+
+Additional "High" days and further winters will help stabilise estimates at the upper levels. Overall, the method is interpretable and extensible. With targeted refinements, it has the potential to provide earlier and more reliable indicators of increasing avalanche hazard while maintaining a low false alarm rate.
+
+## References
+
+-   Statham, G., Haegeli, P., Greene, E., Birkeland, K., Israelson, C., Tremper, B. and Kelly, J. (2018) 'A conceptual model of avalanche hazard', *Natural Hazards*, 90(2), pp. 663-691. <https://doi.org/10.1007/s11069-017-3070-5>.
+
+-   Cui, Y., Jia, M., Lin, T.-Y. and Song, Y. (2019) 'Class-Balanced Loss Based on Effective Number of Samples', in *Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)*, pp. 9268-9277. <https://doi.org/10.1109/CVPR.2019.00949>.
+
+-   Shi, X., Cao, W. and Raschka, S. (2021) 'Deep Neural Networks for Rank-Consistent Ordinal Regression Based on Conditional Probabilities', *arXiv preprint* arXiv:2111.08851. Available at: <https://arxiv.org/abs/2111.08851>.
+
+-   Lim, B. and Zohren, S. (2021) 'Time-series forecasting with deep learning: a survey', *Philosophical Transactions of the Royal Society A: Mathematical, Physical and Engineering Sciences*, 379(2194), 20200209. <https://doi.org/10.1098/rsta.2020.0209>.
+
+## Appendix
+
+### Data Figures
+
+```{r, fig.cap="Figure A1: Proportion of FAH levels in the train and test splits (row-level)"}
+
+# ---- A1: Class balance by split (rows) ----
+library(dplyr); library(ggplot2); library(forcats); library(scales)
+
+train$split <- "Train"; test$split <- "Test"
+both <- bind_rows(train, test)
+
+# Robust factor mapping: works if FAH_ord is numeric 0:4 or labeled strings
+lvl_labs <- c("Low","Moderate","Considerable","High","Very High")
+if (is.numeric(both$FAH_ord)) {
+  both <- both |> mutate(FAH_ord = factor(FAH_ord, levels = 0:4, labels = lvl_labs))
+} else {
+  both <- both |> mutate(FAH_ord = factor(as.character(FAH_ord), levels = lvl_labs))
+}
+
+p <- both |>
+  count(split, FAH_ord, .drop = FALSE) |>
+  group_by(split) |>
+  mutate(prop = n / sum(n)) |>
+  ggplot(aes(x = FAH_ord, y = prop, fill = split)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  scale_y_continuous(labels = percent_format()) +
+  labs(x = "FAH level", y = "Proportion",
+       title = "Class balance by split (row level)") +
+  theme_minimal(base_size = 12)
+
+# print(p)
+
+
+
+```
+
+```{r, fig.cap="Figure A2: Percentage of missing values by variable (top 25)."}
+# A2: Missingness (top 25 variables)
+library(dplyr); library(tidyr); library(ggplot2)
+miss_rate <- function(df) {
+  sapply(df, function(x) mean(is.na(x))) |> sort(decreasing = TRUE)
+}
+mr <- miss_rate(bind_rows(train, test))
+top <- head(mr[mr > 0], 25)
+df_top <- tibble(var = names(top), miss = as.numeric(top))
+p <- ggplot(df_top, aes(x = reorder(var, miss), y = miss)) +
+  geom_col() + coord_flip() +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(x = NULL, y = "Missing (%)",
+       title = "Missingness by variable (top 25)") +
+  theme_minimal(base_size = 12)
+
+# print(p)
+
+```
+
+```{r, fig.cap="Figure A3: Daily observation counts by split across the full study period."}
+# A3: Daily volume over time (daily row counts over time)
+# good for split visualisation
+library(dplyr); library(ggplot2); library(lubridate)
+both <- bind_rows(train %>% mutate(split="Train"),
+                  test  %>% mutate(split="Test"))
+p <- both %>%
+  count(split, Date) %>%
+  ggplot(aes(Date, n, color = split)) +
+  geom_line() +
+  labs(x = "Date", y = "Row count", title = "Daily Observations by Split") +
+  theme_minimal(base_size = 12)
+
+# print(p)
+
+```
+
+```{r}
+library(dplyr); library(ggplot2); library(lubridate)
+
+split_date <- min(test$Date, na.rm = TRUE)
+
+daily <- bind_rows(
+  train %>% mutate(split = "Train"),
+  test  %>% mutate(split = "Test")
+) %>% 
+  count(Date, name = "n") %>% arrange(Date)
+
+# ggplot(daily, aes(Date, n)) +
+#   geom_col(width = 1) +
+#   geom_vline(xintercept = split_date, linetype = "dashed") +
+#   scale_y_continuous(breaks = 0:10, expand = expansion(mult = c(0, .05))) +
+#   labs(title = "Daily observation volume; dashed line = train/test split",
+#        x = "Date", y = "Rows per day") +
+#   theme_minimal(base_size = 12)
+
+```
+
+```{r}
+library(dplyr); library(ggplot2); library(lubridate)
+
+split_week <- floor_date(min(test$Date, na.rm = TRUE), "week")
+
+weekly <- bind_rows(train, test) %>%
+  mutate(week = floor_date(Date, "week")) %>%
+  count(week, name = "n") %>% arrange(week)
+
+# ggplot(weekly, aes(week, n)) +
+#   geom_col() +
+#   geom_vline(xintercept = split_week, linetype = "dashed") +
+#   labs(title = "Weekly observation volume; dashed line = train/test split",
+#        x = "Week", y = "Rows per week") +
+#   theme_minimal(base_size = 12)
+
+```
+
+```{r}
+# A4: Composite key uniqueness (before vs after)
+
+library(dplyr); library(ggplot2)
+
+key_cols <- c("Date","OSgrid","Area")
+
+count_rows_per_key <- function(df) {
+  df |>
+    count(across(all_of(key_cols)), name = "rows_per_key") |>
+    count(rows_per_key, name = "n_keys")
+}
+
+before_tbl <- count_rows_per_key(aval_before_dup) |>
+  mutate(stage = "Before")
+after_tbl  <- count_rows_per_key(aval) |>
+  mutate(stage = "After")
+
+p_key <- bind_rows(before_tbl, after_tbl) |>
+  ggplot(aes(x = factor(rows_per_key), y = n_keys, fill = stage)) +
+  geom_col(position = "dodge") +
+  labs(x = "Rows per (Date, OSgrid, Area) key",
+       y = "Number of keys",
+       title = "Composite key uniqueness: before vs after consolidation") +
+  theme_minimal(base_size = 12)
+
+# print(p_key)
+
+
+```
+
+```{r}
+# A4: Key uniqueness summary (numbers for the text)
+library(dplyr)
+
+key_cols <- c("Date","OSgrid","Area")
+
+rows_per_key_before <- aval_before_dup %>% 
+  count(across(all_of(key_cols)), name = "rows")
+
+rows_per_key_after <- aval %>% 
+  count(across(all_of(key_cols)), name = "rows")
+
+n_keys_before <- nrow(rows_per_key_before)
+n_keys_after  <- nrow(rows_per_key_after)
+
+dup_keys_before <- rows_per_key_before %>% filter(rows > 1)
+n_dup_keys     <- nrow(dup_keys_before)
+n_ge2          <- sum(dup_keys_before$rows == 2)
+n_ge3          <- sum(dup_keys_before$rows >= 3)
+
+collapsed_rows <- nrow(aval_before_dup) - nrow(aval)  # rows removed via collapsing
+pct_unique     <- mean(rows_per_key_after$rows == 1) * 100
+
+# summary_line <- sprintf(
+#   "After consolidation, %.1f%% of keys are unique. Duplicates: %d keys (%d with 2 rows; %d with >=3). Rows collapsed: %d.",
+#   pct_unique, n_dup_keys, n_ge2, n_ge3, collapsed_rows
+# )
+
+#message(summary_line)   # uncomment to print in console
+
+```
+
+After consolidation, $99.9\%$ of (`Date`, `OSgrid`, `Area`) keys were unique.\
+We found $12$ keys with duplicates ($8$ keys with 2 rows; $4$ with $\geq 3$).\
+Conflict cases were retained and flagged; duplicates that differed only by missingness were collapsed (4 rows collapsed).
+
+```{r}
+#A5: Observed vs imputed distributions
+library(tidyr)
+
+# orig_df: data BEFORE numeric imputation
+# baked_df: data AFTER recipes::prep() + bake()
+plot_imputed <- function(orig_df, baked_df, var, bins = 30) {
+  df <- tibble(
+    value   = baked_df[[var]],
+    source  = ifelse(is.na(orig_df[[var]]), "Imputed", "Observed")
+  )
+  ggplot(df, aes(x = value, fill = source)) +
+    geom_histogram(position = "identity", alpha = 0.5, bins = bins) +
+    labs(x = var, y = "Count", title = paste("Observed vs Imputed:", var)) +
+    theme_minimal(base_size = 12)
+}
+
+# Examples (change names to match your columns):
+p3a <- plot_imputed(orig_df = aval_before_imp,
+                    baked_df = x_train, var = "Total.Snow.Depth")
+p3b <- plot_imputed(aval_before_imp, x_train, "Foot.Pen")
+p3c <- plot_imputed(aval_before_imp, x_train, "Max.Temp.Grad")
+
+# print(p3a); print(p3b); print(p3c)
+```
+
+### Model / Results Figures
+
+```{python}
+#| fig-cap: "Figure B1: Confusion matrix on the test set; numbers show counts (top) and row-normalised rates (bottom)"
+# B1: Confusion matrix heatmap
+## confusion matrix (test)
+# yes
+import json, numpy as np, matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
+
+npz = np.load("artifacts/test_preds_ytrue.npz")
+y_true, y_pred = npz["y_true"], npz["y_pred"]
+labels = [0,1,2,3,4]
+
+cm = confusion_matrix(y_true, y_pred, labels=labels)
+cmn = cm / cm.sum(axis=1, keepdims=True)
+
+fig, ax = plt.subplots(figsize=(6,5), dpi=150)
+im = ax.imshow(cmn, interpolation="nearest")
+ax.figure.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+ax.set(xticks=np.arange(len(labels)), yticks=np.arange(len(labels)),
+       xticklabels=labels, yticklabels=labels,
+       xlabel="Predicted FAH", ylabel="True FAH",
+       title="Confusion matrix (row-normalised)")
+for i in range(cmn.shape[0]):
+    for j in range(cmn.shape[1]):
+        ax.text(j, i, f"{cm[i,j]}\n({cmn[i,j]:.2f})",
+                ha="center", va="center", fontsize=8)
+fig.tight_layout()
+#fig.savefig("figs/B1_confusion_matrix.png")
+plt.show()
+
+```
+
+```{python}
+#| fig-cap: "Figure B2: Per-class precision, recall, and F1 on the test set."
+# B2: Per-class PRF bars
+## per-class precision/recall/F1 (test)
+# optional - helpful
+import numpy as np, matplotlib.pyplot as plt
+from sklearn.metrics import precision_recall_fscore_support
+
+labels = np.array([0,1,2,3,4])
+prec, rec, f1, _ = precision_recall_fscore_support(y_true, y_pred, labels=labels, zero_division=0)
+
+x = np.arange(len(labels))
+w = 0.25
+fig, ax = plt.subplots(figsize=(7,4), dpi=150)
+ax.bar(x - w, prec, width=w, label="Precision")
+ax.bar(x      , rec , width=w, label="Recall")
+ax.bar(x + w,  f1  , width=w, label="F1")
+ax.set_xticks(x); ax.set_xticklabels(labels)
+ax.set_ylim(0, 1.05)
+ax.set_xlabel("FAH level"); ax.set_ylabel("Score")
+ax.set_title("Per-class precision/recall/F1 (test)")
+ax.legend()
+fig.tight_layout()
+#fig.savefig("figs/B2_per_class_prf.png")
+plt.show()
+
+```
+
+```{python}
+#| fig-cap: "Figure B3: Comparison of the neural model to baselines on QWK (higher is better) and MAE (lower is better)."
+# B3: Model vs baselines on QWK and MAE
+# yes
+import json, numpy as np, matplotlib.pyplot as plt, pandas as pd
+
+with open("artifacts/test_metrics.json") as f:
+    mt = json.load(f)
+with open("artifacts/baseline_metrics.json") as f:
+    base = json.load(f)
+
+rows = [
+    {"Model":"LSTM-CORN (tuned $\\tau$)", "QWK": mt["qwk"], "MAE": mt["mae"]},
+    {"Model":"Majority (global)",    "QWK": base["majority_global"]["QWK"], "MAE": base["majority_global"]["MAE"]},
+    {"Model":"Majority (per-area)",  "QWK": base["majority_per_area"]["QWK"], "MAE": base["majority_per_area"]["MAE"]},
+    {"Model":"Persistence (y[t-1])", "QWK": base["persistence"]["QWK"], "MAE": base["persistence"]["MAE"]},
+]
+df = pd.DataFrame(rows)
+
+fig, axes = plt.subplots(1,2, figsize=(9,4), dpi=150)
+axes[0].barh(df["Model"], df["QWK"])
+axes[0].set_title("Quadratic Weighted Kappa")
+axes[0].set_xlim(min(df["QWK"])-0.1, max(df["QWK"])+0.1)
+
+axes[1].barh(df["Model"], df["MAE"])
+axes[1].set_title("Mean Absolute Error")
+axes[1].invert_xaxis()  # visually align "better" to the left
+
+for ax in axes:
+    ax.grid(axis='x', linestyle=':', alpha=0.5)
+
+fig.suptitle("Model vs. baselines on test")
+fig.tight_layout()
+#fig.savefig("figs/B3_model_vs_baselines.png")
+plt.show()
+
+```
+
+```{python}
+#| fig-cap: "Figure B4: Tuned CORN decision thresholds ($\\tau$) used to convert probabilities into ordinal labels."
+# B4: Tuned CORN thresholds (tau)
+# optional - quick sanity check
+import numpy as np, matplotlib.pyplot as plt
+taus = np.load("artifacts/test_preds_ytrue.npz")["taus"]  # array of length K-1
+x = np.arange(1, len(taus)+1)
+
+fig, ax = plt.subplots(figsize=(5,3.5), dpi=150)
+ax.bar(x, taus)
+for i, t in enumerate(taus, start=1):
+    ax.text(i, t+0.02, f"{t:.2f}", ha="center", va="bottom", fontsize=9)
+ax.set_xticks(x); ax.set_xticklabels([f"$\\tau${i}" for i in x])
+ax.set_ylim(0, 1.05)
+ax.set_ylabel("Threshold value")
+ax.set_title("Tuned CORN thresholds (monotone)")
+fig.tight_layout()
+#fig.savefig("figs/B4_taus.png")
+plt.show()
+
+```
+
+```{python}
+#| fig-cap: "Figure B5: Proportion of FAH levels at the window level (what the LSTM actually trained on) in train vs test."
+# B5: Class balance for window targets (y_tr / y_te)
+# optional - ties to actual training signal
+import numpy as np, matplotlib.pyplot as plt
+
+def counts(a):
+    bins = [0,1,2,3,4]
+    return np.array([(a==k).sum() for k in bins])
+
+bins = np.array([0,1,2,3,4])
+tr = counts(y_tr.numpy() if hasattr(y_tr, "numpy") else y_tr)
+te = counts(y_te.numpy() if hasattr(y_te, "numpy") else y_te)
+
+x = np.arange(len(bins)); w = 0.35
+fig, ax = plt.subplots(figsize=(7,4), dpi=150)
+ax.bar(x - w/2, tr / tr.sum(), width=w, label="Train")
+ax.bar(x + w/2, te / te.sum(), width=w, label="Test")
+ax.set_xticks(x); ax.set_xticklabels(bins)
+ax.set_ylim(0, 1.05)
+ax.set_xlabel("FAH level"); ax.set_ylabel("Proportion")
+ax.set_title("Class balance by split (window targets)")
+ax.legend()
+fig.tight_layout()
+#fig.savefig("figs/B5_class_balance_windows.png")
+plt.show()
+
+```
