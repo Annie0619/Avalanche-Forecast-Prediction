@@ -1,0 +1,3 @@
+"0","# length(which(aval$Alt>10000)) # only 2"
+"0",""
+"0","aval$Alt[aval$Alt < 0 | aval$Alt > 1400] <- NA_real_"

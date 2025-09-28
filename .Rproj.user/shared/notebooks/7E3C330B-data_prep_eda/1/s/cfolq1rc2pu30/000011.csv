@@ -1,0 +1,7 @@
+"0","# yes, thus long and lat is the coordinates of different sites, OSgrid"
+"0",""
+"0","# is Alt the same within each OSgrid?"
+"0","aval %>%"
+"0","  group_by(OSgrid) %>%"
+"0","  summarise(n_alt = n_distinct(Alt), .groups = ""drop"") %>%"
+"0","  filter(n_alt > 1)"

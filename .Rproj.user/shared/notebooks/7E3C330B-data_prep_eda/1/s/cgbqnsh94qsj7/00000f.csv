@@ -1,0 +1,3 @@
+"0","# remove the original variables:"
+"0","aval <- aval %>%"
+"0","  select(-Wind.Dir, -Summit.Wind.Dir, -Aspect)   # drop originals"

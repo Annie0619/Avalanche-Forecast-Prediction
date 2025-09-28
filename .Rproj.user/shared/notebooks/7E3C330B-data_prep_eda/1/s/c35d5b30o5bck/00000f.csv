@@ -1,0 +1,4 @@
+"0","# fixing the incorrect long and lat value"
+"0","aval %>%"
+"0","  filter(round(longitude, 6) == zero_pts$x,"
+"0","         round(latitude, 6) == zero_pts$y)"

@@ -1,0 +1,5 @@
+"0","# should we add area, i.e. do multiple areas exist per (Date, OSgrid)"
+"0","aval %>%"
+"0","  count(Date, OSgrid, Area) %>%"
+"0","  count(Date, OSgrid) %>%"
+"0","  filter(n > 1)  # there are some, so add area."

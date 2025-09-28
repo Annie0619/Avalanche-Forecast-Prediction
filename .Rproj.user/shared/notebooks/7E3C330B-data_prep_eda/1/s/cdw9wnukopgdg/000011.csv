@@ -1,0 +1,6 @@
+"0","length(which(aval$Max.Temp.Grad>10)) # 160 "
+"1","[1]"
+"1"," 263"
+"1","
+"
+"0","aval$Max.Temp.Grad[which(aval$Max.Temp.Grad>10)] <- NA_real_"

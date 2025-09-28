@@ -1,0 +1,5 @@
+"0","# is long and lat constant within OSgrid?"
+"0","aval %>%"
+"0","  group_by(OSgrid) %>%"
+"0","  summarise(n_coords = n_distinct(paste(longitude, latitude)), .groups = ""drop"") %>%"
+"0","  filter(n_coords > 1)"

@@ -1,0 +1,6 @@
+"0",""
+"0","# length(which(aval$Snow.Index>100)) # 28"
+"0","# length(which(aval$Snow.Index>50)) # 35"
+"0","# length(which(aval$Snow.Index<0)) # 70"
+"0","# length(which(aval$Snow.Index>0 & aval$Snow.Index<20)) # 2021"
+"0","# length(which(aval$Snow.Index==0)) # 7770 actually equals 0"

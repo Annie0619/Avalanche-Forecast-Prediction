@@ -1,0 +1,3 @@
+"0","# unique(aval$Snow.Index)"
+"0","# length(unique(aval$Snow.Index)) #57"
+"0","hist(aval$Snow.Index, breaks = 30)"

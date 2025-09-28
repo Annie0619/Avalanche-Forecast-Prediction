@@ -1,0 +1,1 @@
+"0","hist(aval$Alt[aval$Alt<2000])"

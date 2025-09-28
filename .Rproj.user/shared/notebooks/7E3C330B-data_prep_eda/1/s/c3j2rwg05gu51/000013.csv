@@ -1,0 +1,7 @@
+"0","length(which(aval$Ski.Pen<0))"
+"1","[1]"
+"1"," 0"
+"1","
+"
+"0","# remove all values <0:"
+"0","aval$Ski.Pen[aval$Ski.Pen<0] <- NA_real_"

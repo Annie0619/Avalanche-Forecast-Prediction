@@ -1,0 +1,7 @@
+"0","# quick checks"
+"0","#colnames(aval)"
+"0","#colSums(is.na(aval)) # number of missing values in each column"
+"0","#str(aval) # data type of each column"
+"0",""
+"0","# remove OAH: observed avalanche hazard"
+"0","aval <- aval %>% select(-OAH)"
