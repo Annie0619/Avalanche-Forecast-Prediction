@@ -40,7 +40,7 @@ execute:
 
 Forecast avalanche hazard (FAH) is reported on an ordered five-level scale, making the correct ordering of predictions as important as the exact class assignment. We build a modelling-ready dataset from operational observations in Scotland and cast next-day FAH as an ordinal forecasting problem. Data preparation standardises identifiers, audits and repairs missingness, applies physically sensible bounds, encodes circular variables with sine-cosine pairs, and adds seasonal day-of-year features. We split chronologically (80/20) with an embargo to avoid look-ahead.
 
-For modelling, we turn each area's history into 10-day windows of dynamic features, fuse static site attributes, and train an LSTM with a CORN ordinal head that predicts $K - 1$ exceedance probabilities. Class imbalance is handled by oversampling rare classes in minibatches and class-balanced per-threshold weights in the loss. We then tune monotone thresholds on the most recent validation fold to convert probabilities into labels.
+For modelling, we turn each area`s history into 10-day windows of dynamic features, fuse static site attributes, and train an LSTM with a CORN ordinal head that predicts $K - 1$ exceedance probabilities. Class imbalance is handled by oversampling rare classes in minibatches and class-balanced per-threshold weights in the loss. We then tune monotone thresholds on the most recent validation fold to convert probabilities into labels.
 
 Validation uses forward-chaining time folds; evaluation on a held-out test window reports Accuracy, Macro-F1, MAE, and Quadratic Weighted Kappa (QWK). Compared with three simple baselines (global majority, per-area majority, and persistence), the LSTM-CORN model improves ordinal-aware agreement (QWK) and reduces absolute error (MAE), with most mistakes within one level of the truth. Limitations include scarcity of High hazard days and potential sensitivity to the temporal split, but the approach is reproducible and operationally realistic, and it provides a clear path to calibration and extension.
 
@@ -100,7 +100,7 @@ needs <- c("python=3.11","numpy=2.0","pandas=2.2","matplotlib=3.9",
 
 envs <- tryCatch(conda_list(conda = conda_bin), error = function(e) data.frame())
 if (!isTRUE(env_name %in% envs$name)) {
-  message("Creating conda env '", env_name, "' …")
+  message("Creating conda env `", env_name, "` …")
   conda_create(envname = env_name, packages = "python=3.11",
                channel = "conda-forge", conda = conda_bin)
   conda_install(envname = env_name, packages = needs,
@@ -292,9 +292,9 @@ dup_summary <- tibble(
 
 #### Missingness audit and design of indicators
 
-We measured missingness per variable and, where the absence was informative, created 0/1 'was-missing' flags before any outlier recoding. These were made for: AV.cat, Ski.pen, Crystals, Wetness, Snow.Index, and summit weather fields (Wind Dir/Speed, Air Temp). Creating these early preserves the original data structure. Fields like Max.Temp.Grad, Max.Hardness.Grad are blank when no snow pit is done. So, we imputed those numeric blanks downstream rather than adding indicators.
+We measured missingness per variable and, where the absence was informative, created 0/1 `was-missing` flags before any outlier recoding. These were made for: AV.cat, Ski.pen, Crystals, Wetness, Snow.Index, and summit weather fields (Wind Dir/Speed, Air Temp). Creating these early preserves the original data structure. Fields like Max.Temp.Grad, Max.Hardness.Grad are blank when no snow pit is done. So, we imputed those numeric blanks downstream rather than adding indicators.
 
-**Snow.Index check:** Many values are exactly zero. We tested whether zeros signified 'no test' and found they did not, i.e., rows with zeros showed no elevated missingness in pit variables. We therefore kept zeros as valid measurements and treated only NAs as missing.
+**Snow.Index check:** Many values are exactly zero. We tested whether zeros signified `no test` and found they did not, i.e., rows with zeros showed no elevated missingness in pit variables. We therefore kept zeros as valid measurements and treated only NAs as missing.
 
 ```{r}
 # Missingness audit + indicators:
@@ -337,7 +337,7 @@ We applied conservative plausibility checks and recoded violations to `NA` for l
 -   Foot penetration (cm): values $<0$ or $>100$ set to NA.\
 -   Total snow depth (cm): values $<0$ or $>500$ set to NA (regional plausibility).\
 -   Maximum temperature gradient ($^\circ$C/10 cm): values $> 10$ set to NA.\
--   Altitude (m): values $<0$ or $>1400$ set to NA (Scotland's highest peak $\approx 1345$ m).
+-   Altitude (m): values $<0$ or $>1400$ set to NA (Scotland`s highest peak $\approx 1345$ m).
 
 ```{r}
 # Plausibility filters + hidden diagnostics:
@@ -366,10 +366,6 @@ rules_tbl <- tribble(
  "Max.Temp.Grad (C/10 cm)", ">10 -> NA", "Rare/implausible",
  "Altitude (m)", "<0 or >1400 -> NA", "Scotland max approx 1345 m"
 )
-
-```
-
-```{r echo=FALSE, message=FALSE, warning=FALSE, fig.show='hide'}
 
 ```
 
@@ -637,7 +633,7 @@ target_col = "FAH_ord"
 
 #### Data interface and temporal windows
 
-The data were split into sequences for the recurrent architecture. Static features (longitude, latitude, altitude, incline, area dummies) were held constant across sequences, while dynamic features comprised all remaining numeric variables and the missingness indicators. A new feature of the previous day's hazard rating, `FAH_prev`, was created and added to the dynamic set.
+The data were split into sequences for the recurrent architecture. Static features (longitude, latitude, altitude, incline, area dummies) were held constant across sequences, while dynamic features comprised all remaining numeric variables and the missingness indicators. A new feature of the previous day`s hazard rating, `FAH_prev`, was created and added to the dynamic set.
 
 Area-wise sliding windows with look-back $L = 10$ days and horizon $H = 0$ were built with an embargo (Lim and Zohren, 2021; Eq. 2.1). The train/test split matches the R setup ($80\%$ earliest dates for training, remaining $20\%$ for testing), and windows were constructed after concatenation and filtered by the target date to prevent test leakage.
 
@@ -720,7 +716,7 @@ Xseq_te, Xsta_te, y_te = Xseq_all[is_test],  Xsta_all[is_test],  y_all[is_test]
 
 #### Architecture and loss (CORN-LSTM)
 
-The LSTM's final hidden state after being trained is passed through a small MLP head. Instead of using softmax over the class predictions and Cross-Entropy (CE) error, we used a technique called Cumulative Ordinal Regression for Neural Networks (CORN). The CORN layer follows the MLP head, and produces $K - 1$ logits that are then used to determine progress through a set of ordered binaries on whether a prediction is of a certain class, $\Pr(y > 0)$, $\Pr(y > 1)$, $\ldots$, $\Pr(y > K - 2)$. Because these events become harder as $k$ grows, their probabilities naturally decrease with $k$ (Cao, Mirjalili and Raschka, 2020).
+The LSTM`s final hidden state after being trained is passed through a small MLP head. Instead of using softmax over the class predictions and Cross-Entropy (CE) error, we used a technique called Cumulative Ordinal Regression for Neural Networks (CORN). The CORN layer follows the MLP head, and produces $K - 1$ logits that are then used to determine progress through a set of ordered binaries on whether a prediction is of a certain class, $\Pr(y > 0)$, $\Pr(y > 1)$, $\ldots$, $\Pr(y > K - 2)$. Because these events become harder as $k$ grows, their probabilities naturally decrease with $k$ (Cao, Mirjalili and Raschka, 2020).
 
 During training, We compute CORN targets from the true class and minimise Binary Cross-Entropy (BCE) on the $K - 1$ logits. At inference, we threshold the $K - 1$ probabilities, count how many exceed their thresholds, and that count is the predicted FAH level. This approach is superior to CE error, which treats classes as nominal, and does not distinguish between degrees of misclassification.
 
@@ -864,7 +860,7 @@ def fit_one_corn(model, dl_tr, dl_va, y_tr_fold, lr=2e-3, weight_decay=1e-4,
 ## corn_pos_weight_cb
 def corn_pos_weight_cb(y_fold, K=5, beta=0.999, device=device):
     """
-    Class-balanced 'effective number' weights for CORN thresholds.
+    Class-balanced `effective number` weights for CORN thresholds.
     For threshold k, positives are (y > k).
     """
     y_np = y_fold.cpu().numpy()
@@ -924,7 +920,7 @@ folds = make_time_folds(tgt_dates_tr, K=5, gap_days=10)
 ```{python, eval = FALSE}
 ## Optuna - Hyperparameter tuning with time-fold CV
 
-### Hyperparameter tuning (Optuna) - DON'T RUN BY DEFAULT
+### Hyperparameter tuning (Optuna) - DON`T RUN BY DEFAULT
 # import optuna, numpy as np, random
 # random.seed(20)
 # 
@@ -973,7 +969,7 @@ random.seed(2025)
 tr_idx, va_idx = folds[-1]
 dl_tr, dl_va, y_tr_fold = loaders_for_fold(tr_idx, va_idx, batch_size=256, oversample=True)
 
-# Use tuned settings from CV; if you didn't run Optuna now, set them explicitly:
+# Use tuned settings from CV; if you didn`t run Optuna now, set them explicitly:
 # best = {"hidden_dim":48, "num_layers":1, "rnn_dropout":0.0, "head_dropout":0.35,
         #"lr":2.8e-3, "weight_decay":2.2e-6, "batch_size":256}
 
@@ -1135,7 +1131,7 @@ For context, we implemented three simple non-parametric reference models as base
 
 (i) a **global majority** classifier that predicts the most frequent FAH level in the training labels,\
 (ii) a **per-area majority** classifier that uses the most frequent FAH level within each area (assigned to that area in test), and\
-(iii) a **persistence** rule $\hat{y}_t = y_{t-1}$ within area, with a majority fallback for an area's first test day.
+(iii) a **persistence** rule $\hat{y}_t = y_{t-1}$ within area, with a majority fallback for an area`s first test day.
 
 We report the same metrics used for the neural model (Accuracy, Macro-F1, MAE, QWK) to enable direct comparison.
 
@@ -1185,7 +1181,7 @@ y_pred_area_major = test["AreaName"].map(per_area_major).fillna(major).to_numpy(
 maj_area = metrics(test["FAH_ord"].to_numpy(), y_pred_area_major)
 
 # --- Persistence baseline ---------------------------------------------------
-### predict today's hazard as yesterday's within area; fallback to area majority on first day
+### predict today`s hazard as yesterday`s within area; fallback to area majority on first day
 test_sorted  = test.sort_values(["AreaName","Date"]).copy()
 train_sorted = train.sort_values(["AreaName","Date"]).copy()
 
@@ -1251,9 +1247,6 @@ tbl = pd.DataFrame(rows)[["Model","acc","macroF1","MAE","QWK"]]
 
 ```
 
-```         
-```
-
 ### Class Balance: Train vs Test
 
 Higher hazard levels are rare, and the distribution also shifts over time. In our split the High level does not occur in the test window, which matters for both training and evaluation. The table below shows the proportion of each FAH level within each split (percents within Train/Test):
@@ -1304,7 +1297,7 @@ wide = (
 )
 
 # Flatten the multi-index columns into readable names
-wide.columns = [f"{b} {'rows' if a=='count' else '%'}" for a,b in wide.columns]
+wide.columns = [f"{b} {`rows` if a==`count` else `%`}" for a,b in wide.columns]
 wide = wide.reset_index().rename(columns={"FAH":"FAH level"})
 
 # Format percentages
@@ -1542,7 +1535,7 @@ plt.close(fig)  # avoid duplicate captures
 
 ```
 
-The matrix shows a clear **ordinal pattern**. Class 0 is predicted well (about $0.90$ on the diagonal), with a small spill into class 1. For class 1, only $\sim 0.39$ stays on the diagonal, and $\sim 0.58$ is pushed down to 0; the model tends to **under-forecast** when conditions are near the 0/1 boundary. Class 2 is mostly confused with undefined ($\approx 0.47$) and sometimes with 0 ($\approx 0.37$); only $\sim 0.16$ is correct. Class 3 is rarely predicted directly ($\sim 0.15$ diagonal) and is most often mapped to 1 ($\approx 0.52$) or 0 ($\approx 0.31$). There is effectively no reliable signal for class 4 in the test window (support is 1 and it is predicted as a 1), so per-class scores for 4 are unstable and shouldn't be over-interpreted.
+The matrix shows a clear **ordinal pattern**. Class 0 is predicted well (about $0.90$ on the diagonal), with a small spill into class 1. For class 1, only $\sim 0.39$ stays on the diagonal, and $\sim 0.58$ is pushed down to 0; the model tends to **under-forecast** when conditions are near the 0/1 boundary. Class 2 is mostly confused with undefined ($\approx 0.47$) and sometimes with 0 ($\approx 0.37$); only $\sim 0.16$ is correct. Class 3 is rarely predicted directly ($\sim 0.15$ diagonal) and is most often mapped to 1 ($\approx 0.52$) or 0 ($\approx 0.31$). There is effectively no reliable signal for class 4 in the test window (support is 1 and it is predicted as a 1), so per-class scores for 4 are unstable and shouldn`t be over-interpreted.
 
 This pattern matches the aggregate metrics reported earlier: overall accuracy and MAE are reasonable, but Macro-F1 and QWK suffer because the model compresses higher hazards toward the centre/lower classes. In other words, most errors are one-step, downward mistakes, good for avoiding extreme over-calls but conservative relative to true highs.
 
@@ -1558,7 +1551,7 @@ from sklearn.metrics import classification_report
 
  # Ensure y_true/y_pred exist; otherwise load from artifacts
 try:
-     _ = (y_true, y_pred)          # don't print the tuple
+     _ = (y_true, y_pred)          # don`t print the tuple
 except NameError:
     z = np.load("artifacts/test_preds_ytrue.npz")
     y_true, y_pred = z["y_true"], z["y_pred"]
@@ -1677,7 +1670,7 @@ df
 #     df.style
 #       .hide(axis="index")  # use .hide_index() on pandas<2
 #       .set_caption("Per-class precision, recall, F1 and support on the test set.")
-#       .set_table_attributes('class="table table-sm table-striped"')
+#       .set_table_attributes(`class="table table-sm table-striped"`)
 #       .format({"precision":"{:.3f}","recall":"{:.3f}","f1-score":"{:.3f}","support":"{:,.0f}"})
 #       .set_properties(subset=["Class"], **{"text-align":"left","white-space":"nowrap"})
 #       .set_table_styles([
@@ -1875,9 +1868,9 @@ and once using flat $0.5$ cut-offs for all CORN logits. The two runs produced id
 Accuracy $= 0.648$, Macro-F1 $= 0.295$, MAE $= 0.433$, QWK $= 0.390$.
 
 This tells us that, on this test window, threshold calibration did not change any predicted labels.\
-That is consistent with two facts: (i) the tuned $\tau$ are very close to $0.5$, and (ii) most cumulative probabilities were far from the decision boundaries, so nudging thresholds within $0.48$-$0.52$ doesn't flip classes.
+That is consistent with two facts: (i) the tuned $\tau$ are very close to $0.5$, and (ii) most cumulative probabilities were far from the decision boundaries, so nudging thresholds within $0.48$-$0.52$ doesn`t flip classes.
 
-This implies the model's test performance is driven by the sequence model and learned representations, rather than by the post-hoc thresholds. We keep the tuned $\tau$ for completeness and because they can help when class balance shifts, but we do **not** claim a test-set gain from calibration here. If thresholding becomes more influential (e.g., under stronger distribution shift), broader grids, direct QWK optimisation, or area-specific $\tau$ could be explored.
+This implies the model`s test performance is driven by the sequence model and learned representations, rather than by the post-hoc thresholds. We keep the tuned $\tau$ for completeness and because they can help when class balance shifts, but we do **not** claim a test-set gain from calibration here. If thresholding becomes more influential (e.g., under stronger distribution shift), broader grids, direct QWK optimisation, or area-specific $\tau$ could be explored.
 
 ### Error Shape
 
@@ -2041,7 +2034,7 @@ These examples reflect how we used AI (from our initial scoping and idea generat
 
 In each case, we reviewed/edited the draft and ran the code to confirm it worked with our data.
 
-### Limits of the AI's role
+### Limits of the AI`s role
 
 -   **No autonomous analysis:** AI did not choose the final methodology, set hyperparameters, or produce final results. Those came from our group’s design, runs, and checks.\
 -   **No blind copying:** We avoided pasting large blocks of AI generated text or code. Anything kept was edited and verified by us.\
@@ -2049,7 +2042,7 @@ In each case, we reviewed/edited the draft and ran the code to confirm it worked
 -   **No access to private data or execution:** AI did not run our experiments or access hidden datasets. We executed everything locally and controlled random seeds/caches.\
 -   **Authorship and accountability:** All interpretation, synthesis, and conclusions are ours. The AI’s role was assistive, not determinative.
 
-## Benefits
+### Benefits
 
 Using an LLM mainly helped with structure, clarity, and polish while we kept control of the ideas, code, and results.
 
@@ -2260,10 +2253,6 @@ message(summary_line)   # uncomment to print in console
 
 ```
 
-This uniqueness summary indicates that after consolidation, $99.9\%$ of (`Date`, `OSgrid`, `Area`) keys were unique.\
-We found $12$ keys with duplicates ($8$ keys with 2 rows; $4$ with $\geq 3$).\
-Conflict cases were retained and flagged; duplicates that differed only by missingness were collapsed (4 rows collapsed).
-
 ```{r, fig.cap="Observed vs imputed distributions.", fig.width=6, fig.height=4}
 #A5: Observed vs imputed distributions
 library(tidyr)
@@ -2351,7 +2340,7 @@ axes[1].set_title("Mean Absolute Error")
 axes[1].invert_xaxis()  # visually align "better" to the left
 
 for ax in axes:
-    ax.grid(axis='x', linestyle=':', alpha=0.5)
+    ax.grid(axis='x', linestyle=':`, alpha=0.5)
 
 fig.suptitle("Model vs. baselines on test")
 fig.tight_layout()

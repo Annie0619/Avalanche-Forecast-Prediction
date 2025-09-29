@@ -1279,21 +1279,18 @@ for col in wide.columns:
 
 import pandas as pd
 
-# Build numerics (no % strings yet)
 wide = (
     class_balance.assign(pct=lambda d: d["pct"].round(1))
                  .pivot(index="FAH", columns="split", values=["count","pct"])
                  .sort_index()
 )
 
-# Make sure expected columns exist and order them
 needed = [("count","Test"), ("count","Train"), ("pct","Test"), ("pct","Train")]
 for col in needed:
     if col not in wide.columns:
         wide[col] = 0
 wide = wide[needed].reset_index().rename(columns={"FAH":"FAH level"})
 
-# Format helpers
 def fmt_int(x):
     try: return f"{int(round(x)):,}"
     except: return ""
@@ -1311,7 +1308,6 @@ disp = pd.DataFrame({
     "Train %":   [fmt_pct(v) for v in wide[("pct","Train")]],
 })
 
-# Assemble LaTeX with grouped headers; Quarto includes booktabs
 header = r"""\begin{table}[ht]
 \centering
 \caption{FAH class balance by split.}
@@ -1370,7 +1366,6 @@ Below we compare the tuned LSTM-CORN model with three simple baselines. We evalu
 #| results: asis
 import pandas as pd
 
-# pretty column names + rounding
 pretty = (
     tbl.rename(columns={"acc": "Accuracy", "macroF1": "Macro-F1"})
        .assign(
@@ -1384,8 +1379,8 @@ pretty = (
 
 latex = pretty.to_latex(
     index=False,
-    escape=False,              # keep LaTeX in "Model" (your $\tau$)
-    column_format="lrrrr",     # left + 4 right-aligned numeric cols
+    escape=False,           
+    column_format="lrrrr",     
     caption="Performance comparison between LSTM-CORN and baseline models.",
     label="tab:metrics",
     bold_rows=False
@@ -1395,7 +1390,6 @@ print(latex)
 ```
 
 ```{python}
-# Load metrics from artifacts (written by your training code)
 with open("artifacts/test_metrics.json") as f:
     model_m = json.load(f)
 with open("artifacts/baseline_metrics.json") as f:
@@ -1491,14 +1485,13 @@ If the operational goal is to catch more 2-3 days (accepting some extra false al
 import numpy as np, pandas as pd
 from sklearn.metrics import classification_report
 
-# Ensure y_true/y_pred exist; otherwise load from artifacts
 try:
-    _ = (y_true, y_pred)          # don't print the tuple
+    _ = (y_true, y_pred)          
 except NameError:
     z = np.load("artifacts/test_preds_ytrue.npz")
     y_true, y_pred = z["y_true"], z["y_pred"]
 
-# Build the report dict and tidy it into a DF
+
 rep = classification_report(
     y_true, y_pred,
     labels=[0,1,2,3,4],
@@ -1511,16 +1504,15 @@ df = (pd.DataFrame(rep).T
         .reset_index()
         .rename(columns={"index":"Class"}))
 
-# Keep columns, round, cast support
+
 df = df[["Class","precision","recall","f1-score","support"]].copy()
 df[["precision","recall","f1-score"]] = df[["precision","recall","f1-score"]].round(3)
 df["support"] = df["support"].astype(int)
 
-# Emit LaTeX; center the table
 latex = df.to_latex(
     index=False,
     escape=False,
-    column_format="lrrrr",  # 1 left + 4 numeric
+    column_format="lrrrr",  
     caption="Per-class Precision, Recall, F1 and Support on the test set.",
     label="tbl:per-class"
 )
@@ -1648,7 +1640,6 @@ except NameError:
 #| echo: false
 import pandas as pd
 
-# Pretty column names + rounding
 pretty = (
     comp.rename(columns={"acc": "Accuracy", "macroF1": "Macro-F1"}).copy()
 )
@@ -1666,7 +1657,6 @@ latex = pretty.to_latex(
     bold_rows=False
 )
 
-# center the table float
 latex = latex.replace(r"\begin{table}", r"\begin{table}[ht]\centering")
 print(latex)
 
@@ -1747,7 +1737,7 @@ The held-out results paint a clear picture. Hazards in this period are highly pe
 
 Accuracy and MAE are reasonable for the neural model, but the QWK and macro-F1 show performance drops higher up the scale. This is consistent with the near-diagonal confusion matrix that has a downward bias (Level 1 is often pushed to 0; Levels 2-3 are frequently mapped to 1) while extreme over-calls are rare. The error histogram shows most misses are within one category (consistent with MAE $\approx 0.43$): useful for avoiding false alarms, but conservative relative to true highs. Finally, threshold calibration had almost no effect (tuned $\tau \approx [0.52, 0.50, 0.50, 0.48]$ and gave identical results to 0.5), which implies the limiting factor is representation/sequence learning, not the label cut-offs.
 
-### Factors underpinning Persistence performance 
+### Factors underpinning Persistence performance
 
 Two data realities favour the $y[t-1]$ rule:\
 (i) strong day-to-day autocorrelation in FAH;\
@@ -2069,10 +2059,7 @@ Conflict cases were retained and flagged; duplicates that differed only by missi
 
 ```{r, fig.cap="Observed vs imputed distributions.", fig.width=6, fig.height=4}
 #A5: Observed vs imputed distributions
-library(tidyr)
-
-# orig_df: data BEFORE numeric imputation
-# baked_df: data AFTER recipes::prep() + bake()
+library(tid
 plot_imputed <- function(orig_df, baked_df, var, bins = 30) {
   df <- tibble(
     value   = baked_df[[var]],
@@ -2084,7 +2071,6 @@ plot_imputed <- function(orig_df, baked_df, var, bins = 30) {
     theme_minimal(base_size = 12)
 }
 
-# Examples (change names to match your columns):
 p3a <- plot_imputed(orig_df = aval_before_imp,
                     baked_df = x_train, var = "Total.Snow.Depth")
 p3b <- plot_imputed(aval_before_imp, x_train, "Foot.Pen")
