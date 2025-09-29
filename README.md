@@ -15,3 +15,5 @@ open -a RStudio .
 ```bash
 conda env update -f environment.yml --prune
 ```
+
+Please email us if there are any issues! 

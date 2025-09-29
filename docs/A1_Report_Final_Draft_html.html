@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>quarto-input2c742396d282aa58 – Avalanche Risk Prediction</title>
+<title>quarto-input7300503f73d78570 – Avalanche Risk Prediction</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -132,11 +132,11 @@ window.Quarto = {
   </li>  
   <li class="nav-item">
     <a class="nav-link active" href="./A1_Report_Final_Draft_html.html" aria-current="page"> 
-<span class="menu-text">A1_Report_Final_Draft_html.html</span></a>
+<span class="menu-text">Paper</span></a>
   </li>  
-  <li class="nav-item compact">
-    <a class="nav-link" href="./LLMs_statement.qmd"> 
-<span class="menu-text"></span></a>
+  <li class="nav-item">
+    <a class="nav-link" href="./LLMs_Statement.html"> 
+<span class="menu-text">AI Statement</span></a>
   </li>  
 </ul>
           </div> <!-- /navcollapse -->
@@ -164,7 +164,6 @@ window.Quarto = {
   </ul></li>
   <li><a href="#results" id="toc-results" class="nav-link" data-scroll-target="#results">Results</a>
   <ul class="collapse">
-  <li><a href="#validation-set-up" id="toc-validation-set-up" class="nav-link" data-scroll-target="#validation-set-up">Validation Set-Up</a></li>
   <li><a href="#class-balance-train-vs-test" id="toc-class-balance-train-vs-test" class="nav-link" data-scroll-target="#class-balance-train-vs-test">Class Balance: Train vs Test</a></li>
   <li><a href="#test-performance-model-vs-baselines" id="toc-test-performance-model-vs-baselines" class="nav-link" data-scroll-target="#test-performance-model-vs-baselines">Test Performance (Model vs Baselines)</a></li>
   <li><a href="#confusion-matrix-and-per-class-report" id="toc-confusion-matrix-and-per-class-report" class="nav-link" data-scroll-target="#confusion-matrix-and-per-class-report">Confusion Matrix and Per-Class Report</a></li>
@@ -173,17 +172,16 @@ window.Quarto = {
   </ul></li>
   <li><a href="#discussion" id="toc-discussion" class="nav-link" data-scroll-target="#discussion">Discussion</a>
   <ul class="collapse">
-  <li><a href="#metrics-diagnostics" id="toc-metrics-diagnostics" class="nav-link" data-scroll-target="#metrics-diagnostics">Metrics &amp; Diagnostics</a></li>
-  <li><a href="#why-persistence-wins-here" id="toc-why-persistence-wins-here" class="nav-link" data-scroll-target="#why-persistence-wins-here">Why persistence wins here</a></li>
+  <li><a href="#metrics-and-diagnostics" id="toc-metrics-and-diagnostics" class="nav-link" data-scroll-target="#metrics-and-diagnostics">Metrics and diagnostics</a></li>
+  <li><a href="#factors-underpinning-persistence-performance" id="toc-factors-underpinning-persistence-performance" class="nav-link" data-scroll-target="#factors-underpinning-persistence-performance">Factors underpinning Persistence performance</a></li>
   <li><a href="#operational-interpretation" id="toc-operational-interpretation" class="nav-link" data-scroll-target="#operational-interpretation">Operational interpretation</a></li>
   <li><a href="#limitations" id="toc-limitations" class="nav-link" data-scroll-target="#limitations">Limitations</a></li>
-  <li><a href="#possible-future-improvements" id="toc-possible-future-improvements" class="nav-link" data-scroll-target="#possible-future-improvements">Possible Future Improvements</a></li>
+  <li><a href="#possible-future-improvements" id="toc-possible-future-improvements" class="nav-link" data-scroll-target="#possible-future-improvements">Possible future improvements</a></li>
   </ul></li>
   <li><a href="#conclusion" id="toc-conclusion" class="nav-link" data-scroll-target="#conclusion">Conclusion</a></li>
   <li><a href="#statement-on-the-use-of-ai-llms" id="toc-statement-on-the-use-of-ai-llms" class="nav-link" data-scroll-target="#statement-on-the-use-of-ai-llms">Statement on the use of AI (LLMs)</a>
   <ul class="collapse">
   <li><a href="#ai-implementation-and-utilisation" id="toc-ai-implementation-and-utilisation" class="nav-link" data-scroll-target="#ai-implementation-and-utilisation">AI Implementation and utilisation</a></li>
-  <li><a href="#code-polishing-integration" id="toc-code-polishing-integration" class="nav-link" data-scroll-target="#code-polishing-integration">3) Code polishing &amp; integration</a></li>
   <li><a href="#verification-and-academic-integrity" id="toc-verification-and-academic-integrity" class="nav-link" data-scroll-target="#verification-and-academic-integrity">Verification and academic integrity</a></li>
   <li><a href="#representative-prompts" id="toc-representative-prompts" class="nav-link" data-scroll-target="#representative-prompts">Representative prompts</a></li>
   <li><a href="#limits-of-the-ais-role" id="toc-limits-of-the-ais-role" class="nav-link" data-scroll-target="#limits-of-the-ais-role">Limits of the AI�s role</a></li>
@@ -226,17 +224,18 @@ window.Quarto = {
 1. <strong>Site and topography</strong> - OS grid identifier, location name, longitude, latitude, altitude, incline.<br>
 2. <strong>Contemporaneous meteorology</strong> near the forecast location - summit air temperature, summit wind speed and direction, lower-level winds, cloud, and insolation.<br>
 3. <strong>Snowpack observations</strong> derived from field tests - snow temperature, maximum temperature and hardness gradients, foot and ski penetration indices, crystal type, wetness, and a derived stability index.</p>
-<p>To avoid information leakage for the FAH task, the observed hazard on the following day (OAH) was removed from the analysis dataset.</p>
+<p>The observed hazard (OAH) was removed from the dataset to prevent leakage.</p>
+<div style="page-break-after: always;"></div>
 </section>
 <section id="methods-data-preparation-cleaning-and-pre-processing" class="level3">
 <h3 class="anchored" data-anchor-id="methods-data-preparation-cleaning-and-pre-processing">Methods: Data Preparation, Cleaning, and Pre-processing</h3>
 <section id="type-standardisation-and-initial-feature-engineering" class="level4">
 <h4 class="anchored" data-anchor-id="type-standardisation-and-initial-feature-engineering">Type standardisation and initial feature engineering</h4>
-<p>We converted timestamps to Date and derived year, month, day-of-year (<code>doy</code>), and meteorological season (DJF/MAM/JJA/SON). Identifiers and descriptors were given sensible types (e.g., <code>Area</code> as a factor; OS grid and location as character). The hazard response was stored as an ordered factor (<code>FAH_ord</code>) using the level order defined above. These steps preserve the outcome�s ordinal structure for modelling and evaluation and add explicit seasonality features for downstream encoding.</p>
+<p>We parsed timestamps into date components (year, month, DOY, season), converted IDs to appropriate types (e.g., <code>Area</code> as a factor), and stored FAH as an ordered factor (<code>FAH_ord</code>) to preserve ordinal structure for modelling and evaluation.</p>
 </section>
 <section id="spatial-consistency-checks" class="level4">
 <h4 class="anchored" data-anchor-id="spatial-consistency-checks">Spatial consistency checks</h4>
-<p>We examined whether OS grids denote unique points. Longitude and latitude vary within OS grids, indicating that an OS grid represents an area rather than a single coordinate. Altitude is not constant within OS grids. Accordingly, altitude should not be imputed from the OS grid identifier alone: since each grid covers heterogeneous terrain, we instead query elevation using the precise latitude-longitude coordinates.</p>
+<p>OS grids represents areas rather than single points, so longitude, latitude, and altitude vary within them. Therefore, we did not impute altitude from the grid ID: since each grid covers heterogeneous terrain, we instead queried elevation using precise coordinates.</p>
 </section>
 <section id="record-keys-duplicates-and-consolidation" class="level4">
 <h4 class="anchored" data-anchor-id="record-keys-duplicates-and-consolidation">Record keys, duplicates, and consolidation</h4>
@@ -249,13 +248,12 @@ window.Quarto = {
 </section>
 <section id="missingness-audit-and-design-of-indicators" class="level4">
 <h4 class="anchored" data-anchor-id="missingness-audit-and-design-of-indicators">Missingness audit and design of indicators</h4>
-<p>We first measured missingness per variable and inspected its pattern. Where the absence itself could be informative, we created explicit 0/1 “was-missing” flags (before any outlier recoding). These indicators were made for: AV.cat, Ski.pen, Crystals, Wetness, Snow.Index, and the summit weather fields (Summit.Wind.Dir, Summit.Wind.Speed, Summit.Air.Temp). Doing this early ensures the indicators reflect the data as collected and aren�t confounded by later plausibility filters.</p>
-<p>Some fields (e.g., Max.Temp.Grad, Max.Hardness.Grad) are only measured when a snow pit is carried out. When no pit is done those fields are blank by design, so we did not add extra “missing” indicators; instead, we impute those numeric blanks downstream for modelling.</p>
-<p><strong>Snow.Index check:</strong> Because many values are exactly zero, we tested whether Snow.Index == 0 was being used as a stand-in for “no test.” It wasn�t: rows with Snow.Index = 0 didn�t show elevated missingness in pit variables, so zeros appear to be legitimate measurements (e.g., stable conditions). We therefore kept zeros as valid values and treated only NA as missing.</p>
+<p>We measured missingness per variable and, where the absence was informative, created 0/1 ‘was-missing’ flags before any outlier recoding. These were made for: AV.cat, Ski.pen, Crystals, Wetness, Snow.Index, and summit weather fields (Wind Dir/Speed, Air Temp). Creating these early preserves the original data structure. Fields like Max.Temp.Grad, Max.Hardness.Grad are blank when no snow pit is done. So, we imputed those numeric blanks downstream rather than adding indicators.</p>
+<p><strong>Snow.Index check:</strong> Many values are exactly zero. We tested whether zeros signified ‘no test’ and found they did not, i.e., rows with zeros showed no elevated missingness in pit variables. We therefore kept zeros as valid measurements and treated only NAs as missing.</p>
 </section>
 <section id="physically-defensible-plausibility-filters" class="level4">
 <h4 class="anchored" data-anchor-id="physically-defensible-plausibility-filters">Physically defensible plausibility filters</h4>
-<p>We applied conservative real-world plausibility checks and recoded any violations to <code>NA</code> so they can be handled by imputation rather than ad-hoc edits. The limits reflect basic constraints (e.g., angles in <span class="math inline">\(0{-}360^\circ\)</span>, non-negative depths) and local context.</p>
+<p>We applied conservative plausibility checks and recoded violations to <code>NA</code> for later imputation. The limits reflect basic physical and local constraints (e.g., angles in <span class="math inline">\(0{-}360^\circ\)</span>, non-negative depths).</p>
 <ul>
 <li>Directional variables (Aspect, Wind.Dir, Summit.Wind.Dir): values outside <span class="math inline">\([0^\circ, 360^\circ]\)</span> set to <code>NA</code>.<br>
 </li>
@@ -273,19 +271,18 @@ window.Quarto = {
 </li>
 <li>Altitude (m): values <span class="math inline">\(&lt;0\)</span> or <span class="math inline">\(&gt;1400\)</span> set to NA (Scotland�s highest peak <span class="math inline">\(\approx 1345\)</span> m).</li>
 </ul>
-<p>Marking impossible readings as <code>NA</code> prevents them from skewing summaries or model fits and lets the downstream multivariate imputer estimate plausible replacements from the remaining data.</p>
 </section>
 <section id="altitude-repair-via-coordinate-based-elevation-lookup" class="level4">
 <h4 class="anchored" data-anchor-id="altitude-repair-via-coordinate-based-elevation-lookup">Altitude repair via coordinate-based elevation lookup</h4>
-<p>For the small number of missing altitudes, we queried an open elevation service at rounded (<code>latitude</code>, <code>longitude</code>) and filled <code>Alt</code> where a value was returned. One queried coordinate yielded <span class="math inline">\(0\)</span> m (a sea-loch), indicating a geolocation error. For that single case, we replaced the coordinate with the area mean (Creag Meagaidh) and re-queried. To ensure deterministic compilation, elevation results are cached locally; subsequent runs read from cache if the service is unavailable.</p>
+<p>For missing altitudes, we queried an open elevation service at rounded coordinates and filled <code>Alt</code> where values were returned. One query returned <span class="math inline">\(0\)</span> m (a sea-loch), indicating a geolocation error. We replaced it with the area mean (Creag Meagaidh) and re-queried. Results are cached locally for deterministic compilation and used if the service is unavailable.</p>
 </section>
 <section id="circular-encodings-for-directional-variables" class="level4">
 <h4 class="anchored" data-anchor-id="circular-encodings-for-directional-variables">Circular encodings for directional variables</h4>
-<p><strong>Circular encodings for directional variables.</strong> Because angles wrap around at <span class="math inline">\(360^\circ\)</span>, treating them as ordinary numbers creates an artificial jump between <span class="math inline">\(359^\circ\)</span> and <span class="math inline">\(0^\circ\)</span>. We therefore replaced each directional variable (<code>Wind.Dir</code>, <code>Summit.Wind.Dir</code>, <code>Aspect</code>) with two new variables that locate the direction on the unit circle: the sine and cosine of the angle (in radians). This keeps <span class="math inline">\(0^\circ\)</span> and <span class="math inline">\(360^\circ\)</span> close in feature space, and removes the wrap-around discontinuity, which helps and yields smoother relationships for the models. Missing angles remained missing in both components and were imputed later.</p>
+<p>As angles wrap at <span class="math inline">\(360^\circ\)</span>, treating them as numeric creates an artificial jump between <span class="math inline">\(359^\circ\)</span> and <span class="math inline">\(0^\circ\)</span>. We replaced each directional variable (<code>Wind.Dir</code>, <code>Summit.Wind.Dir</code>, <code>Aspect</code>) with the sine and cosine of the angle (radians). This keeps <span class="math inline">\(0^\circ\)</span> and <span class="math inline">\(360^\circ\)</span> close in feature space, and removes the wrap-around discontinuity. Missing angles remained missing in both components and were imputed later.</p>
 </section>
 <section id="time-aware-splitting-and-leakage-control" class="level4">
 <h4 class="anchored" data-anchor-id="time-aware-splitting-and-leakage-control">Time-aware splitting and leakage control</h4>
-<p>The data was split chronologically into <span class="math inline">\(80\%\)</span> training and <span class="math inline">\(20\%\)</span> test by calendar time (no overlap).Any rows missing a <code>Date</code> or the target (<code>FAH_ord</code>) were dropped before the split. We checked class balance in each split; the High level is very rare and does not appear in the test window (so performance on that class cannot be evaluated). All preprocessing steps were fit on the training set only (e.g., imputation, scaling, encoding) and then applied unchanged to the test set. This setup avoids information leakage.</p>
+<p>We split the data chronologically into <span class="math inline">\(80\%\)</span> training and <span class="math inline">\(20\%\)</span> test (non-overlapping), dropping rows with missing <code>Date</code> or target (<code>FAH_ord</code>) before the split. We checked class balance in each split. The High level is very rare and absent in the test window, so performance on it cannot be evaluated. All preprocessing (imputation, scaling, encoding) was fit on the training set and applied unchanged to the test set to avoid leakage.</p>
 </section>
 <section id="pre-processing-pipeline-for-modelling-recipes" class="level4">
 <h4 class="anchored" data-anchor-id="pre-processing-pipeline-for-modelling-recipes">Pre-processing pipeline for modelling (recipes)</h4>
@@ -301,17 +298,16 @@ window.Quarto = {
 </li>
 <li><strong>Variance filtering:</strong> Removal of zero-variance and near-zero-variance predictors.<br>
 </li>
-<li><strong>Scaling:</strong> Standardisation of numerical predictors, excluding the 0/1 informative-missing indicators (and area dummies) to preserve their interpretability.<br>
+<li><strong>Scaling:</strong> Standardisation of numerical predictors, excluding the 0/1 informative-missing indicators (and area dummies).<br>
 </li>
 <li><strong>Seasonality:</strong> Replacement of discrete season dummies with smooth cyclical features <span class="math inline">\(doy\_sin\)</span> and <span class="math inline">\(doy\_cos\)</span> (constructed from day-of-year with leap years handled); season binaries were removed to reduce collinearity.<br>
 </li>
 <li><strong>Target mapping:</strong> The ordered response was mapped once to integers <span class="math inline">\(0{-}4\)</span> to provide a single source of truth for neural-network models.</li>
 </ol>
-<p>The recipe was prepped on the training set (estimating imputation models, encoding maps, and scaling parameters) and then baked on both training and test splits to yield model-ready matrices (<code>x_train</code>, <code>x_test</code>). For downstream modelling and plotting, a <code>Date</code> column was retained; final matrices (<span class="math inline">\(X\_{train}\)</span>, <span class="math inline">\(X\_{test}\)</span>) include the integer-encoded target as the last column.</p>
 </section>
 <section id="reproducibility-diagnostics-and-assumptions" class="level4">
 <h4 class="anchored" data-anchor-id="reproducibility-diagnostics-and-assumptions">Reproducibility, diagnostics, and assumptions</h4>
-<p>We fixed random seeds and kept all data-prep and modelling steps in a single scripted pipeline so that results are reproducible across runs. After baking the recipe, there were no remaining missing values in either split. We re-checked the composite key (<code>Date</code>, <code>OSgrid</code>, <code>Area</code>) after duplicate handling, and we spot-checked distributions of imputed variables to make sure they looked reasonable (plots not shown for space). Elevation queries are cached locally, so reruns do not depend on the external service.</p>
+<p>We fixed random seeds and kept all data-prep and modelling steps in a single scripted pipeline. After baking the recipe, there were no remaining missing values in either split. We re-checked the composite key (<code>Date</code>, <code>OSgrid</code>, <code>Area</code>) after duplicate handling, and we spot-checked distributions of imputed variables to make sure they looked reasonable. Elevation queries are cached locally, so reruns do not depend on the external service.</p>
 <p>Our working assumptions were:<br>
 (i) the value ranges we used to flag implausible measurements reflect Scottish conditions;<br>
 (ii) <code>Snow.Index == 0</code> is a <strong>valid zero</strong> (stable conditions), not a stand-in for “no test”; and<br>
@@ -319,36 +315,30 @@ window.Quarto = {
 </section>
 <section id="limitations-and-sensitivity-considerations" class="level4">
 <h4 class="anchored" data-anchor-id="limitations-and-sensitivity-considerations">Limitations and sensitivity considerations</h4>
-<p>The High hazard class is rare (and absent in our test window) so standard accuracy alone can be misleading. We therefore report macro-averaged scores and discuss calibration in the results, but performance on the very rarest conditions remains uncertain. The plausibility cut-offs (e.g., the threshold for snow temperature) are conservative choices, not unique truths; reasonable alternatives could be used, and results may shift slightly.<br>
-Finally, because we split by time, outcomes can vary with the split date (e.g., if conditions change from one season to the next). This is typical in operational forecasting; sensitivity checks (e.g., alternate split points or small variations in thresholds and look-back length) would be a natural extension.</p>
+<p>The High hazard class is rare (and absent in our test window) so standard accuracy alone can be misleading. We therefore report macro-averaged scores and discuss calibration in the results, but performance on the very rarest conditions remains uncertain. The plausibility cut-offs (e.g., the threshold for snow temperature) are conservative choices, not unique truths; reasonable alternatives could be used, and results may shift slightly.</p>
+<p>Finally, because we split by time, outcomes can vary with the split date (e.g., if conditions change from one season to the next). This is typical in operational forecasting, so sensitivity checks (e.g., alternate split points or small variations in thresholds and look-back length) would be a natural extension.</p>
 </section>
 </section>
 <section id="methods-neural-ordinal-forecasting-model" class="level3">
 <h3 class="anchored" data-anchor-id="methods-neural-ordinal-forecasting-model">Methods: Neural ordinal forecasting model</h3>
-<p>The neural network implementation was done in python, using the popular PyTorch deep learning library. Given the temporal component of the data, a recurrent network architecture was used over a standard feed-forward setup, which is incapable of “remembering” anything about past observations. Specifically, a Long Short Term Memory (LSTM) design was employed, which are less susceptible to vanishing and exploding gradients.</p>
-<div class="cell">
-<div class="cell-output cell-output-stdout">
-<pre><code>&lt;torch._C.Generator object at 0x0000020B12EB2210&gt;</code></pre>
-</div>
-</div>
+<p>The neural network implementation was done in python, using PyTorch. Given the temporal component of the data, a recurrent network architecture was used over a standard feed-forward setup, which is incapable of “remembering” anything about past observations. Specifically, a Long Short Term Memory (LSTM) design was employed, which is less susceptible to vanishing and exploding gradients.</p>
 <section id="data-interface-and-temporal-windows" class="level4">
 <h4 class="anchored" data-anchor-id="data-interface-and-temporal-windows">Data interface and temporal windows</h4>
-<p>The data were split into sequences for the recurrent architecture. The variables were divided into static and dynamic categories, with the static features uniform in the sequence. These features were longitude, latitude, altitude, incline, and area binaries, and the dynamic features were all remaining numeric variables, and the missingness indicators from the preprocessing stage. In adddition, a new feature of the previous day�s hazard rating, FAH_prev, was created and included in the dynamic category.</p>
-<p>Area-wise sliding windows with look-back <span class="math inline">\(L = 10\)</span> days and horizon <span class="math inline">\(H = 0\)</span> were constructed, with an embargo (Lim and Zohren, 2021; Eq. 2.1). The train/test boundary follows the R split (<span class="math inline">\(80\%\)</span> earliest dates for training; remaining <span class="math inline">\(20\%\)</span> for testing). Windows are built after concatenating and then filtering by the <strong>target date</strong> so that nothing from the test period influences training.ilt after concatenating and then filtering by the <strong>target date</strong> so that nothing from the test period influences training.</p>
+<p>The data were split into sequences for the recurrent architecture. Static features (longitude, latitude, altitude, incline, area dummies) were held constant across sequences, while dynamic features comprised all remaining numeric variables and the missingness indicators. A new feature of the previous day�s hazard rating, <code>FAH_prev</code>, was created and added to the dynamic set.</p>
+<p>Area-wise sliding windows with look-back <span class="math inline">\(L = 10\)</span> days and horizon <span class="math inline">\(H = 0\)</span> were built with an embargo (Lim and Zohren, 2021; Eq. 2.1). The train/test split matches the R setup (<span class="math inline">\(80\%\)</span> earliest dates for training, remaining <span class="math inline">\(20\%\)</span> for testing), and windows were constructed after concatenation and filtered by the target date to prevent test leakage.</p>
 </section>
 <section id="architecture-and-loss-corn-lstm" class="level4">
 <h4 class="anchored" data-anchor-id="architecture-and-loss-corn-lstm">Architecture and loss (CORN-LSTM)</h4>
-<p>The final hidden state of the LSTM after being trained is passed through a small MLP head. Instead of then using softmax over the class predictions and Cross-Entropy (CE) error, we used a technique called Cumlative Ordinal Regression for Neural Networks (CORN). The CORN layer follows the MLP head, and produces <span class="math inline">\(K - 1\)</span> logits that are then used to determine progress through a set of ordered binaries on whether a prediction is of a certain class, <span class="math inline">\(\Pr(y &gt; 0)\)</span>, <span class="math inline">\(\Pr(y &gt; 1)\)</span>, <span class="math inline">\(\ldots\)</span>, <span class="math inline">\(\Pr(y &gt; K - 2)\)</span>. Because these events become harder as <span class="math inline">\(k\)</span> grows, their probabilities naturally decrease with <span class="math inline">\(k\)</span> (Cao, Mirjalili and Raschka, 2020). During training, We compute CORN targets from the true class and minimise Binary Cross-Entropy (BCE) on the <span class="math inline">\(K - 1\)</span> logits. At inference, we threshold the <span class="math inline">\(K - 1\)</span> probabilities, count how many exceed their thresholds, and that count is the predicted FAH level.</p>
-<p>This approach is superior to CE error, which treats classes as nominal, and does not distinguish between degrees of misclassifcation.</p>
+<p>The LSTM�s final hidden state after being trained is passed through a small MLP head. Instead of using softmax over the class predictions and Cross-Entropy (CE) error, we used a technique called Cumulative Ordinal Regression for Neural Networks (CORN). The CORN layer follows the MLP head, and produces <span class="math inline">\(K - 1\)</span> logits that are then used to determine progress through a set of ordered binaries on whether a prediction is of a certain class, <span class="math inline">\(\Pr(y &gt; 0)\)</span>, <span class="math inline">\(\Pr(y &gt; 1)\)</span>, <span class="math inline">\(\ldots\)</span>, <span class="math inline">\(\Pr(y &gt; K - 2)\)</span>. Because these events become harder as <span class="math inline">\(k\)</span> grows, their probabilities naturally decrease with <span class="math inline">\(k\)</span> (Cao, Mirjalili and Raschka, 2020).</p>
+<p>During training, We compute CORN targets from the true class and minimise Binary Cross-Entropy (BCE) on the <span class="math inline">\(K - 1\)</span> logits. At inference, we threshold the <span class="math inline">\(K - 1\)</span> probabilities, count how many exceed their thresholds, and that count is the predicted FAH level. This approach is superior to CE error, which treats classes as nominal, and does not distinguish between degrees of misclassification.</p>
 </section>
 <section id="class-imbalance-handling" class="level4">
 <h4 class="anchored" data-anchor-id="class-imbalance-handling">Class imbalance handling</h4>
-<p>Two techniques were employed to counteract the imbalance between high and low hazard level predictions in the dataset: Batch oversampling and Class-balanced CORN loss<strong>.</strong> In the case of the former,Oversampling in the training loader (<code>WeightedRandomSampler</code>) to increase the frequency of rarer FAH levels during optimisation, so minority levels appear more often in batches.</p>
-<p>In the latter, we apply the class-balanced loss based on the effective number of samples, which weights each class by <span class="math inline">\((1 - \beta)/(1 - \beta^{n_c})\)</span>. For each threshold <span class="math inline">\(k\)</span>, we compute a positive weight (<span class="math inline">\(\beta = 0.999\)</span>) and apply it in the BCE term, so rare exceedance events <span class="math inline">\((y &gt; k)\)</span> contribute proportionally more without duplicating data (Cui et al., 2019). This has he effect of upweighting rare events, making them mater more in the BCE loss.</p>
+<p>We addressed class imbalance between high and low hazard level predictions using two techniques: (1) oversampling in the training loader (<code>WeightedRandomSampler</code>) to increase rare FAH frequencies during optimisation, and (2) Class-balanced CORN loss, which weights each class by its effective number of samples <span class="math inline">\((1 - \beta)/(1 - \beta^{n_c})\)</span>. For each threshold <span class="math inline">\(k\)</span>, we compute a positive weight (<span class="math inline">\(\beta = 0.999\)</span>) and apply it in the BCE term so rare exceedance events <span class="math inline">\((y &gt; k)\)</span> contribute proportionally more without duplicating data (Cui et al., 2019). This has the effect of upweighting rare events, making them mater more in the BCE loss.</p>
 </section>
 <section id="validation-protocol-hyperparameter-search-and-early-stopping" class="level4">
 <h4 class="anchored" data-anchor-id="validation-protocol-hyperparameter-search-and-early-stopping">Validation protocol, hyperparameter search, and early stopping</h4>
-<p>In order to conduct hyperparameter tuning for the chosen model architecture, an appropriate validation framework was implemented. In order to maximise data for training and testing, cross validation was employed. We created forward-chaining time folds (<span class="math inline">\(K=5\)</span>) with anembargo of length $ L $ before each validation slice to avoid look-ahead leakage. For a fold k, the validation set is a contigous block of unique target dates, adn the training is all earlier sequences, except for the embargo before the validation block to prevent leakage. This means that the there is an expanding window as we move forward in time, so the training includes more history, and there is no random shuffling, which would be inappropriate in this context.</p>
+<p>In order to conduct hyperparameter tuning for the chosen model architecture, an appropriate validation framework was implemented. In order to maximise data for training and testing, cross validation was employed. We created forward-chaining time folds (<span class="math inline">\(K=5\)</span>) with an embargo of length $ L $ before each validation slice to avoid look-ahead leakage. For a fold k, the validation set is a contiguous block of unique target dates, and the training is all earlier sequences, except for the embargo before the validation block to prevent leakage. This means that there is an expanding window as we move forward in time, so the training includes more history, and there is no random shuffling, which would be inappropriate in this context.</p>
 <p>We tuned hyperparameters with <strong>Optuna</strong> over:</p>
 <ul>
 <li>hidden size <span class="math inline">\(\{32, 48, 64\}\)</span>,</li>
@@ -363,7 +353,7 @@ Finally, because we split by time, outcomes can vary with the split date (e.g., 
 </section>
 <section id="threshold-calibration-monotone-tau" class="level4">
 <h4 class="anchored" data-anchor-id="threshold-calibration-monotone-tau">Threshold calibration (monotone <span class="math inline">\(\tau\)</span>)</h4>
-<p>After selection, the model was refit on all training windows and thresholds were calibrated on the most recent validation fold, then fixed for test, since the last validation fold should be more similar to the test distribution. These thresholds are used to turn the CORN outputs of <span class="math inline">\(K - 1\)</span> probabilities into labels. They were tuned on the latest validation fold using a simple grid over <span class="math inline">\(0.3\)</span>-<span class="math inline">\(0.7\)</span>, selecting the vector that maximises QWK. they are monotone non_increasing, <span class="math inline">\(\tau_1 \ge \tau_2 \ge \cdots \ge \tau_{K-1}\)</span> , because <span class="math inline">\(\Pr(y &gt; k)\)</span> decreases with <span class="math inline">\(k\)</span>; later thresholds should never be easier to exceed than earlier ones.</p>
+<p>After selection, the model was refit on all training windows and thresholds were calibrated on the most recent validation fold, then fixed for test, since the last validation fold should be more similar to the test distribution. These thresholds are used to turn the CORN outputs of <span class="math inline">\(K - 1\)</span> probabilities into labels. They were tuned on the latest validation fold using a simple grid over <span class="math inline">\(0.3\)</span>-<span class="math inline">\(0.7\)</span>, selecting the vector that maximises QWK. they are monotone non-increasing, <span class="math inline">\(\tau_1 \ge \tau_2 \ge \cdots \ge \tau_{K-1}\)</span> , because <span class="math inline">\(\Pr(y &gt; k)\)</span> decreases with <span class="math inline">\(k\)</span>; later thresholds should never be easier to exceed than earlier ones.</p>
 <p>The tuned vector used for test was:</p>
 <p><span class="math display">\[ \tau = [0.52, \; 0.50, \; 0.50, \; 0.48].
 \]</span></p>
@@ -388,6 +378,7 @@ Finally, because we split by time, outcomes can vary with the split date (e.g., 
 <li>a <strong>persistence</strong> rule <span class="math inline">\(\hat{y}_t = y_{t-1}\)</span> within area, with a majority fallback for an area�s first test day.</li>
 </ol>
 <p>We report the same metrics used for the neural model (Accuracy, Macro-F1, MAE, QWK) to enable direct comparison.</p>
+<div style="page-break-after: always;"></div>
 </section>
 </section>
 </section>
@@ -396,74 +387,393 @@ Finally, because we split by time, outcomes can vary with the split date (e.g., 
 <p>We evaluate the tuned LSTM-CORN on the held-out test window and compare it with three simple baselines.<br>
 All settings were fixed before touching the test set. We report Accuracy, Macro-F1, MAE, and Quadratic Weighted Kappa (QWK);<br>
 a confusion matrix and per-class summary show where errors occur.</p>
-<div class="cell">
-<div class="cell-output cell-output-stdout">
-<pre><code>                      Model       acc   macroF1       MAE       QWK
-0  LSTM-CORN (tuned $\tau$)  0.640114  0.299320  0.438122  0.405810
-1         Majority (global)  0.305358  0.093571  0.735420  0.000000
-2       Majority (per-area)  0.392603  0.200081  0.755334  0.089535
-3      Persistence (y[t-1])  0.719298  0.455616  0.329066  0.658770</code></pre>
-</div>
-</div>
-<div id="tbl-metrics" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-tbl figure">
-<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl quarto-uncaptioned" id="tbl-metrics-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;1
-</figcaption>
-<div aria-describedby="tbl-metrics-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div>
-
-</div>
-</div>
-</figure>
-</div>
-<section id="validation-set-up" class="level3">
-<h3 class="anchored" data-anchor-id="validation-set-up">Validation Set-Up</h3>
-<p>We validated with forward-chaining time folds and a 10-day embargo between training and validation windows, ensuring the model never “sees” information from the future of the validation period. Hyperparameters maximised mean QWK across folds, and after selection, we recalibrated thresholds on the most recent fold (the one closest in time to the test window).</p>
-<div class="cell">
-<div class="cell-output cell-output-stdout">
-<pre><code>Validation = forward-chaining (K=5) with 10-day embargo; objective = mean QWK across folds.</code></pre>
-</div>
-</div>
-</section>
+<pre><code></code></pre>
 <section id="class-balance-train-vs-test" class="level3">
 <h3 class="anchored" data-anchor-id="class-balance-train-vs-test">Class Balance: Train vs Test</h3>
 <p>Higher hazard levels are rare, and the distribution also shifts over time. In our split the High level does not occur in the test window, which matters for both training and evaluation. The table below shows the proportion of each FAH level within each split (percents within Train/Test):</p>
-<div class="cell" data-tbl-cap="FAH class balance by split.">
-<div class="cell-output cell-output-stdout">
-<pre><code>   FAH level  Test rows  Train rows Test % Train %
-0          0     1209.0      2222.0  57.3%   26.3%
-1          1      644.0      2593.0  30.5%   30.7%
-2          2      171.0      2327.0   8.1%   27.5%
-3          3       84.0       849.0   4.0%   10.0%
-4          4        1.0       458.0   0.0%    5.4%</code></pre>
-</div>
-</div>
+<style type="text/css">
+#T_83b36 th {
+  text-align: right;
+}
+#T_83b36 td {
+  text-align: right;
+}
+#T_83b36 caption {
+  caption-side: top;
+  font-weight: 600;
+}
+#T_83b36_row0_col0, #T_83b36_row1_col0, #T_83b36_row2_col0, #T_83b36_row3_col0, #T_83b36_row4_col0 {
+  text-align: left;
+  white-space: nowrap;
+}
+</style>
+<table id="T_83b36" class="table table-sm table-striped">
+<caption>
+FAH class balance by split.
+</caption>
+<thead>
+<tr>
+<th id="T_83b36_level0_col0" class="col_heading level0 col0">
+</th>
+<th id="T_83b36_level0_col1" class="col_heading level0 col1" colspan="2">
+count
+</th>
+<th id="T_83b36_level0_col3" class="col_heading level0 col3" colspan="2">
+percent
+</th>
+</tr>
+<tr>
+<th id="T_83b36_level1_col0" class="col_heading level1 col0">
+FAH level
+</th>
+<th id="T_83b36_level1_col1" class="col_heading level1 col1">
+Test
+</th>
+<th id="T_83b36_level1_col2" class="col_heading level1 col2">
+Train
+</th>
+<th id="T_83b36_level1_col3" class="col_heading level1 col3">
+Test
+</th>
+<th id="T_83b36_level1_col4" class="col_heading level1 col4">
+Train
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td id="T_83b36_row0_col0" class="data row0 col0">
+0
+</td>
+<td id="T_83b36_row0_col1" class="data row0 col1">
+1,209
+</td>
+<td id="T_83b36_row0_col2" class="data row0 col2">
+2,222
+</td>
+<td id="T_83b36_row0_col3" class="data row0 col3">
+57.3%
+</td>
+<td id="T_83b36_row0_col4" class="data row0 col4">
+26.3%
+</td>
+</tr>
+<tr>
+<td id="T_83b36_row1_col0" class="data row1 col0">
+1
+</td>
+<td id="T_83b36_row1_col1" class="data row1 col1">
+644
+</td>
+<td id="T_83b36_row1_col2" class="data row1 col2">
+2,593
+</td>
+<td id="T_83b36_row1_col3" class="data row1 col3">
+30.5%
+</td>
+<td id="T_83b36_row1_col4" class="data row1 col4">
+30.7%
+</td>
+</tr>
+<tr>
+<td id="T_83b36_row2_col0" class="data row2 col0">
+2
+</td>
+<td id="T_83b36_row2_col1" class="data row2 col1">
+171
+</td>
+<td id="T_83b36_row2_col2" class="data row2 col2">
+2,327
+</td>
+<td id="T_83b36_row2_col3" class="data row2 col3">
+8.1%
+</td>
+<td id="T_83b36_row2_col4" class="data row2 col4">
+27.5%
+</td>
+</tr>
+<tr>
+<td id="T_83b36_row3_col0" class="data row3 col0">
+3
+</td>
+<td id="T_83b36_row3_col1" class="data row3 col1">
+84
+</td>
+<td id="T_83b36_row3_col2" class="data row3 col2">
+849
+</td>
+<td id="T_83b36_row3_col3" class="data row3 col3">
+4.0%
+</td>
+<td id="T_83b36_row3_col4" class="data row3 col4">
+10.0%
+</td>
+</tr>
+<tr>
+<td id="T_83b36_row4_col0" class="data row4 col0">
+4
+</td>
+<td id="T_83b36_row4_col1" class="data row4 col1">
+1
+</td>
+<td id="T_83b36_row4_col2" class="data row4 col2">
+458
+</td>
+<td id="T_83b36_row4_col3" class="data row4 col3">
+0.0%
+</td>
+<td id="T_83b36_row4_col4" class="data row4 col4">
+5.4%
+</td>
+</tr>
+</tbody>
+</table>
 <p>The training set shows a relatively balanced distribution across Levels 0-2 (approximately <span class="math inline">\(26\%\)</span>-<span class="math inline">\(31\%\)</span> each), with Level 3 at around <span class="math inline">\(10\%\)</span> and Level 4 at <span class="math inline">\(5\%\)</span> . The test set, however, is heavily skewed: Level 0 dominates ( <span class="math inline">\(\approx 57\%\)</span>), followed by Level 1 (<span class="math inline">\(31\%\)</span> ), Level 2 (<span class="math inline">\(8\%\)</span>), Level 3 (<span class="math inline">\(4\%\)</span>), and Level 4 is virtually absent ( <span class="math inline">\(\sim 0\%\)</span>).</p>
 <p>This shift has important implications. A naive model that predicts Level 0 can achieve high Accuracy despite poor overall performance. Macro-F1 and QWK are therefore more informative, as they weight classes evenly and penalise larger ordinal errors. To address the imbalance, the training procedure uses oversampling and a class-balanced CORN loss, while threshold calibration on the final fold helps adapt the decision rule to the test distribution.</p>
 <div class="cell">
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-37-1.png" class="img-fluid figure-img" width="480"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-35-1.png" class="img-fluid figure-img" width="480"></p>
 <figcaption>Bar Plot illustrating FAH class balance by split.</figcaption>
 </figure>
 </div>
 </div>
 </div>
+<div style="page-break-after: always;"></div>
 </section>
 <section id="test-performance-model-vs-baselines" class="level3">
 <h3 class="anchored" data-anchor-id="test-performance-model-vs-baselines">Test Performance (Model vs Baselines)</h3>
 <p>Below we compare the tuned LSTM-CORN model with three simple baselines. We evaluate performance using four metrics: <strong>Accuracy</strong>, <strong>Macro-F1</strong>, <strong>Mean Absolute Error (MAE)</strong>, and <strong>Quadratic Weighted Kappa (QWK)</strong>. Accuracy measures the proportion of exact predictions but can be misleading under class imbalance (e.g., always predicting the majority class). Macro-F1 computes precision and recall per class, takes their harmonic mean, and averages equally across classes. This handles imbalance better but ignores class ordering. MAE uses the ordinal scale directly, averaging absolute differences between true and predicted levels (e.g., a miss of <span class="math inline">\(0 \to 1\)</span> counts as 1, while <span class="math inline">\(0 \to 4\)</span> counts as 4), with a range from <span class="math inline">\(0\)</span> to <span class="math inline">\(K - 1\)</span>. QWK is a chance-corrected agreement measure that penalises larger ordinal gaps using quadratic weights. It ranges from 1 (perfect) to 0 (chance) and can be less than 0 (worse than chance), making it well suited to ordinal targets and useful for validation.</p>
-<div class="cell">
-<div class="cell-output cell-output-stdout">
-<pre><code>                      Model       acc   macroF1       MAE       QWK
-0  LSTM-CORN (tuned $\tau$)  0.640114  0.299320  0.438122  0.405810
-1         Majority (global)  0.305358  0.093571  0.735420  0.000000
-2       Majority (per-area)  0.392603  0.200081  0.755334  0.089535
-3      Persistence (y[t-1])  0.719298  0.455616  0.329066  0.658770</code></pre>
+<div id="tbl-metrics-html" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl quarto-uncaptioned" id="tbl-metrics-html-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;1
+</figcaption>
+<div aria-describedby="tbl-metrics-html-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<style type="text/css">
+#T_ba152 th {
+  text-align: right;
+}
+#T_ba152 td {
+  text-align: right;
+}
+#T_ba152 caption {
+  caption-side: top;
+  font-weight: 600;
+}
+#T_ba152_row0_col0, #T_ba152_row1_col0, #T_ba152_row2_col0, #T_ba152_row3_col0 {
+  text-align: left;
+  white-space: nowrap;
+}
+</style>
+<table id="T_ba152" class="table table-sm table-striped">
+<caption>
+Performance comparison between LSTM-CORN and baseline models.
+</caption>
+<thead>
+<tr>
+<th id="T_ba152_level0_col0" class="col_heading level0 col0">
+Model
+</th>
+<th id="T_ba152_level0_col1" class="col_heading level0 col1">
+Accuracy
+</th>
+<th id="T_ba152_level0_col2" class="col_heading level0 col2">
+Macro-F1
+</th>
+<th id="T_ba152_level0_col3" class="col_heading level0 col3">
+MAE
+</th>
+<th id="T_ba152_level0_col4" class="col_heading level0 col4">
+QWK
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td id="T_ba152_row0_col0" class="data row0 col0">
+LSTM-CORN (tuned tau)
+</td>
+<td id="T_ba152_row0_col1" class="data row0 col1">
+0.640
+</td>
+<td id="T_ba152_row0_col2" class="data row0 col2">
+0.299
+</td>
+<td id="T_ba152_row0_col3" class="data row0 col3">
+0.438
+</td>
+<td id="T_ba152_row0_col4" class="data row0 col4">
+0.406
+</td>
+</tr>
+<tr>
+<td id="T_ba152_row1_col0" class="data row1 col0">
+Majority (global)
+</td>
+<td id="T_ba152_row1_col1" class="data row1 col1">
+0.305
+</td>
+<td id="T_ba152_row1_col2" class="data row1 col2">
+0.094
+</td>
+<td id="T_ba152_row1_col3" class="data row1 col3">
+0.735
+</td>
+<td id="T_ba152_row1_col4" class="data row1 col4">
+0.000
+</td>
+</tr>
+<tr>
+<td id="T_ba152_row2_col0" class="data row2 col0">
+Majority (per-area)
+</td>
+<td id="T_ba152_row2_col1" class="data row2 col1">
+0.393
+</td>
+<td id="T_ba152_row2_col2" class="data row2 col2">
+0.200
+</td>
+<td id="T_ba152_row2_col3" class="data row2 col3">
+0.755
+</td>
+<td id="T_ba152_row2_col4" class="data row2 col4">
+0.090
+</td>
+</tr>
+<tr>
+<td id="T_ba152_row3_col0" class="data row3 col0">
+Persistence (y[t-1])
+</td>
+<td id="T_ba152_row3_col1" class="data row3 col1">
+0.719
+</td>
+<td id="T_ba152_row3_col2" class="data row3 col2">
+0.456
+</td>
+<td id="T_ba152_row3_col3" class="data row3 col3">
+0.329
+</td>
+<td id="T_ba152_row3_col4" class="data row3 col4">
+0.659
+</td>
+</tr>
+</tbody>
+</table>
 </div>
+</figure>
 </div>
+<style type="text/css">
+#T_8d8e0 th {
+  text-align: right;
+}
+#T_8d8e0 td {
+  text-align: right;
+}
+#T_8d8e0 caption {
+  caption-side: top;
+  font-weight: 600;
+}
+#T_8d8e0_row0_col0, #T_8d8e0_row1_col0, #T_8d8e0_row2_col0, #T_8d8e0_row3_col0 {
+  text-align: left;
+  white-space: nowrap;
+}
+</style>
+<table id="T_8d8e0" class="table table-sm table-striped">
+<caption>
+Test-set performance: model vs baselines.
+</caption>
+<thead>
+<tr>
+<th id="T_8d8e0_level0_col0" class="col_heading level0 col0">
+Model
+</th>
+<th id="T_8d8e0_level0_col1" class="col_heading level0 col1">
+Accuracy
+</th>
+<th id="T_8d8e0_level0_col2" class="col_heading level0 col2">
+Macro-F1
+</th>
+<th id="T_8d8e0_level0_col3" class="col_heading level0 col3">
+MAE
+</th>
+<th id="T_8d8e0_level0_col4" class="col_heading level0 col4">
+QWK
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td id="T_8d8e0_row0_col0" class="data row0 col0">
+LSTM-CORN (tuned tau)
+</td>
+<td id="T_8d8e0_row0_col1" class="data row0 col1">
+0.640
+</td>
+<td id="T_8d8e0_row0_col2" class="data row0 col2">
+0.299
+</td>
+<td id="T_8d8e0_row0_col3" class="data row0 col3">
+0.438
+</td>
+<td id="T_8d8e0_row0_col4" class="data row0 col4">
+0.406
+</td>
+</tr>
+<tr>
+<td id="T_8d8e0_row1_col0" class="data row1 col0">
+Majority (global)
+</td>
+<td id="T_8d8e0_row1_col1" class="data row1 col1">
+0.305
+</td>
+<td id="T_8d8e0_row1_col2" class="data row1 col2">
+0.094
+</td>
+<td id="T_8d8e0_row1_col3" class="data row1 col3">
+0.735
+</td>
+<td id="T_8d8e0_row1_col4" class="data row1 col4">
+0.000
+</td>
+</tr>
+<tr>
+<td id="T_8d8e0_row2_col0" class="data row2 col0">
+Majority (per-area)
+</td>
+<td id="T_8d8e0_row2_col1" class="data row2 col1">
+0.393
+</td>
+<td id="T_8d8e0_row2_col2" class="data row2 col2">
+0.200
+</td>
+<td id="T_8d8e0_row2_col3" class="data row2 col3">
+0.755
+</td>
+<td id="T_8d8e0_row2_col4" class="data row2 col4">
+0.090
+</td>
+</tr>
+<tr>
+<td id="T_8d8e0_row3_col0" class="data row3 col0">
+Persistence (y[t-1])
+</td>
+<td id="T_8d8e0_row3_col1" class="data row3 col1">
+0.719
+</td>
+<td id="T_8d8e0_row3_col2" class="data row3 col2">
+0.456
+</td>
+<td id="T_8d8e0_row3_col3" class="data row3 col3">
+0.329
+</td>
+<td id="T_8d8e0_row3_col4" class="data row3 col4">
+0.659
+</td>
+</tr>
+</tbody>
+</table>
 <p>On the held-out test window, the persistence rule (predict today as yesterday within area) is the strongest comparator: QWK <span class="math inline">\(\approx 0.659\)</span>, Accuracy <span class="math inline">\(\approx 0.719\)</span>, MAE <span class="math inline">\(\approx 0.329\)</span>, Macro-F1 <span class="math inline">\(\approx 0.456\)</span> The tuned LSTM-CORN improves markedly over the two majority heuristics but does not reach persistence, with QWK <span class="math inline">\(\approx 0.390\)</span>, Accuracy <span class="math inline">\(\approx 0.648\)</span>, MAE <span class="math inline">\(\approx 0.433\)</span>, and Macro-F1 <span class="math inline">\(\approx 0.295\)</span>.<br>
 </p>
 <p>The majority baselines are near chance in ordinal agreement (global QWK <span class="math inline">\(\approx 0\)</span>; per-area QWK <span class="math inline">\(\approx 0.09\)</span>), confirming that always picking the common class is not competitive.</p>
@@ -502,17 +812,89 @@ Table&nbsp;1
 <section id="effect-of-threshold-calibration" class="level3">
 <h3 class="anchored" data-anchor-id="effect-of-threshold-calibration">Effect of Threshold Calibration</h3>
 <p>Tuned monotone thresholds are intended to improve ordinal agreement over the default <span class="math inline">\(0.5\)</span> cut-offs.</p>
-<div class="cell">
-<div class="cell-output cell-output-stdout">
-<pre><code>        Cutoffs       acc  macroF1       MAE      QWK
-0  tuned $\tau$  0.640114  0.29932  0.438122  0.40581
-1      0.5 flat  0.640114  0.29932  0.438122  0.40581</code></pre>
-</div>
-</div>
+<style type="text/css">
+#T_a39b0 th {
+  text-align: right;
+}
+#T_a39b0 td {
+  text-align: right;
+}
+#T_a39b0 caption {
+  caption-side: top;
+  font-weight: 600;
+}
+#T_a39b0_row0_col0, #T_a39b0_row1_col0 {
+  text-align: left;
+  white-space: nowrap;
+}
+#T_a39b0_row0_col1, #T_a39b0_row0_col2, #T_a39b0_row0_col3, #T_a39b0_row0_col4, #T_a39b0_row1_col1, #T_a39b0_row1_col2, #T_a39b0_row1_col3, #T_a39b0_row1_col4 {
+  font-weight: 700;
+}
+</style>
+<table id="T_a39b0" class="table table-sm table-striped">
+<caption>
+Performance comparison between tuned <span class="math inline">\(\tau\)</span> cutoffs and a flat 0.5 cutoff.
+</caption>
+<thead>
+<tr>
+<th id="T_a39b0_level0_col0" class="col_heading level0 col0">
+Cutoffs
+</th>
+<th id="T_a39b0_level0_col1" class="col_heading level0 col1">
+Accuracy
+</th>
+<th id="T_a39b0_level0_col2" class="col_heading level0 col2">
+Macro-F1
+</th>
+<th id="T_a39b0_level0_col3" class="col_heading level0 col3">
+MAE
+</th>
+<th id="T_a39b0_level0_col4" class="col_heading level0 col4">
+QWK
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td id="T_a39b0_row0_col0" class="data row0 col0">
+tuned <span class="math inline">\(\tau\)</span>
+</td>
+<td id="T_a39b0_row0_col1" class="data row0 col1">
+0.640
+</td>
+<td id="T_a39b0_row0_col2" class="data row0 col2">
+0.299
+</td>
+<td id="T_a39b0_row0_col3" class="data row0 col3">
+0.438
+</td>
+<td id="T_a39b0_row0_col4" class="data row0 col4">
+0.406
+</td>
+</tr>
+<tr>
+<td id="T_a39b0_row1_col0" class="data row1 col0">
+0.5 flat
+</td>
+<td id="T_a39b0_row1_col1" class="data row1 col1">
+0.640
+</td>
+<td id="T_a39b0_row1_col2" class="data row1 col2">
+0.299
+</td>
+<td id="T_a39b0_row1_col3" class="data row1 col3">
+0.438
+</td>
+<td id="T_a39b0_row1_col4" class="data row1 col4">
+0.406
+</td>
+</tr>
+</tbody>
+</table>
 <p>We re-evaluated the test set twice: once using the tuned monotone thresholds <span class="math inline">\(\tau = [0.52, 0.50, 0.50, 0.48]\)</span><br>
-and once using flat <span class="math inline">\(0.5\)</span> cut-offs for all CORN logits. The two runs produced <strong>identical</strong> results:<br>
+and once using flat <span class="math inline">\(0.5\)</span> cut-offs for all CORN logits. The two runs produced identical results:<br>
 Accuracy <span class="math inline">\(= 0.648\)</span>, Macro-F1 <span class="math inline">\(= 0.295\)</span>, MAE <span class="math inline">\(= 0.433\)</span>, QWK <span class="math inline">\(= 0.390\)</span>.</p>
-<p>This tells us that, on this test window, threshold calibration <strong>did not change any predicted labels</strong>.<br>
+<p>This tells us that, on this test window, threshold calibration did not change any predicted labels.<br>
 That is consistent with two facts: (i) the tuned <span class="math inline">\(\tau\)</span> are very close to <span class="math inline">\(0.5\)</span>, and (ii) most cumulative probabilities were far from the decision boundaries, so nudging thresholds within <span class="math inline">\(0.48\)</span>-<span class="math inline">\(0.52\)</span> doesn�t flip classes.</p>
 <p>This implies the model�s test performance is driven by the sequence model and learned representations, rather than by the post-hoc thresholds. We keep the tuned <span class="math inline">\(\tau\)</span> for completeness and because they can help when class balance shifts, but we do <strong>not</strong> claim a test-set gain from calibration here. If thresholding becomes more influential (e.g., under stronger distribution shift), broader grids, direct QWK optimisation, or area-specific <span class="math inline">\(\tau\)</span> could be explored.</p>
 </section>
@@ -537,15 +919,15 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <section id="discussion" class="level2">
 <h2 class="anchored" data-anchor-id="discussion">Discussion</h2>
 <p>The held-out results paint a clear picture. Hazards in this period are highly persistent and skewed toward the lower levels, and the naive persistence rule (“predict today as yesterday within area”) performs very strongly on all summary metrics. Our tuned LSTM-CORN improves markedly over the two majority baselines, but it does not beat persistence on this particular test window.</p>
-<section id="metrics-diagnostics" class="level3">
-<h3 class="anchored" data-anchor-id="metrics-diagnostics">Metrics &amp; Diagnostics</h3>
+<section id="metrics-and-diagnostics" class="level3">
+<h3 class="anchored" data-anchor-id="metrics-and-diagnostics">Metrics and diagnostics</h3>
 <p>Accuracy and MAE are reasonable for the neural model, but the QWK and macro-F1 show performance drops higher up the scale. This is consistent with the near-diagonal confusion matrix that has a downward bias (Level 1 is often pushed to 0; Levels 2-3 are frequently mapped to 1) while extreme over-calls are rare. The error histogram shows most misses are within one category (consistent with MAE <span class="math inline">\(\approx 0.43\)</span>): useful for avoiding false alarms, but conservative relative to true highs. Finally, threshold calibration had almost no effect (tuned <span class="math inline">\(\tau \approx [0.52, 0.50, 0.50, 0.48]\)</span> and gave identical results to 0.5), which implies the limiting factor is representation/sequence learning, not the label cut-offs.</p>
 </section>
-<section id="why-persistence-wins-here" class="level3">
-<h3 class="anchored" data-anchor-id="why-persistence-wins-here">Why persistence wins here</h3>
+<section id="factors-underpinning-persistence-performance" class="level3">
+<h3 class="anchored" data-anchor-id="factors-underpinning-persistence-performance">Factors underpinning Persistence performance</h3>
 <p>Two data realities favour the <span class="math inline">\(y[t-1]\)</span> rule:<br>
-(i) <strong>strong day-to-day autocorrelation</strong> in FAH;<br>
-(ii) <strong>imbalance and shift:</strong> the test window contains no “High” days and is dominated by Levels 0-1. In that regime, copying yesterday is genuinely hard to beat. The LSTM-CORN learns the ordinal structure and avoids wild swings, but with few upper-level examples and a short 14-day context, it struggles to escalate to 2-3 when the series does move.</p>
+(i) strong day-to-day autocorrelation in FAH;<br>
+(ii) imbalance and shift: the test window contains no “High” days and is dominated by Levels 0-1. In that regime, copying yesterday is genuinely hard to beat. The LSTM-CORN learns the ordinal structure and avoids wild swings, but with few upper-level examples and a short 14-day context, it struggles to escalate to 2-3 when the series does move. Persistence is not affected by the data imbalance like the LSTM, and is in fact aided by it (response is more uniform for test set).</p>
 </section>
 <section id="operational-interpretation" class="level3">
 <h3 class="anchored" data-anchor-id="operational-interpretation">Operational interpretation</h3>
@@ -556,7 +938,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <p>Conclusions are conditioned on this split: the test window lacks class 4 entirely and has very few class 3 days, so per-class scores at the top end are unstable. The dataset is modest for sequence models, labels may contain operational noise, and we restricted the model to observed histories (no external forecasts), which caps lead-time sensitivity. We mitigated leakage with forward-chaining folds and an embargo, but results will vary with split point and winter severity.</p>
 </section>
 <section id="possible-future-improvements" class="level3">
-<h3 class="anchored" data-anchor-id="possible-future-improvements">Possible Future Improvements</h3>
+<h3 class="anchored" data-anchor-id="possible-future-improvements">Possible future improvements</h3>
 <p>Short-to-medium steps that fit the current pipeline:</p>
 <ul>
 <li><strong>Longer and/or multi-scale context</strong> (e.g., 28-45 days plus recent 7-day summary features) to help detect trend changes.<br>
@@ -578,6 +960,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <p>The diagnostics are consistent with this outcome. The confusion matrix is near-diagonal with a slight downward bias, MAE (<span class="math inline">\(\approx 0.43\)</span>) indicates that most errors fall within one category, and threshold calibration has negligible effect. This suggests that the main limitations lie in the data regime and sequence representation rather than in the choice of decision cut-offs.</p>
 <p>From an operational perspective, the model is conservative and unlikely to produce extreme over-warnings. Its greatest value is in cases where it diverges from persistence, indicating potential changes in hazard. Sensitivity to rising risk could be improved through longer or multi-scale look-back periods, cost-sensitive or area- and season-specific calibration, the inclusion of forecasted weather and change features, and the use of ordinal focal or Tversky losses, or ensembling with persistence.</p>
 <p>Additional “High” days and further winters will help stabilise estimates at the upper levels. Overall, the method is interpretable and extensible. With targeted refinements, it has the potential to provide earlier and more reliable indicators of increasing avalanche hazard while maintaining a low false alarm rate.</p>
+<div style="page-break-after: always;"></div>
 </section>
 <section id="statement-on-the-use-of-ai-llms" class="level2">
 <h2 class="anchored" data-anchor-id="statement-on-the-use-of-ai-llms">Statement on the use of AI (LLMs)</h2>
@@ -591,14 +974,13 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <section id="code" class="level4">
 <h4 class="anchored" data-anchor-id="code">2) Code</h4>
 <ul>
-<li><strong>Data prep (R):</strong><br>
+<li><strong>Data prep (R):</strong> LLMs were used to support the design of the data cleaning pipeline, including handling missing values, detecting outliers, and ensuring correct variable types. They also assisted with R syntax and efficient use of packages such as dplyr and tidymodels. Prompts were kept concise and outputs validated step by step to ensure reliability.<br>
 </li>
 <li><strong>Modelling (PyTorch):</strong> LLMs were used to brainstorm ideas around the architecture of the model and assess the feasibility and efficacy of different approaches. It was also used to get Python syntax and data structures correct, as we are not fluent in that language or the Pytorch library. Steps were followed to ensure best practice in the use of LLMs, such as conserving tokens were ever possible, through concise and specific prompts, and requested limited output unless otherwise prompted. Would the end of the context length was reached, we generated summaries of our chats and put them at the start of the following chat.</li>
 </ul>
 </section>
-</section>
-<section id="code-polishing-integration" class="level3">
-<h3 class="anchored" data-anchor-id="code-polishing-integration">3) Code polishing &amp; integration</h3>
+<section id="code-polishing-integration" class="level4">
+<h4 class="anchored" data-anchor-id="code-polishing-integration">3) Code polishing &amp; integration</h4>
 <p>We used AI to make code presentable and navigable inside the report so a reader can follow the narrative and the code together:</p>
 <ul>
 <li>Refactored and streamlined/condensed code blocks (docstrings, clearer names, comments) without changing logic.<br>
@@ -610,6 +992,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <li>Double-checked that the time split and folds prevented leakage, and that train/test separation was respected in every data path.</li>
 </ul>
 <p>Any AI-suggested code was run directly by us, and retained only if it was correct, readable, and consistent with our pipeline.</p>
+</section>
 <section id="writing-supplementary-assistance---we-retained-authorial-control" class="level4">
 <h4 class="anchored" data-anchor-id="writing-supplementary-assistance---we-retained-authorial-control">4) Writing (supplementary assistance - we retained authorial control)</h4>
 <p>We used AI as an editor and explainer, not as an author. It helped with coverage checks, clarity, and presentation. We kept control of the structure, final wording, and all technical claims.</p>
@@ -689,10 +1072,11 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 </li>
 <li><strong>Focused learning support:</strong> For more complex sections (e.g., CORN thresholds, QWK) it provided explanations and examples for us to better understand the theory.<br>
 </li>
-<li><strong>Cognitive offloading:</strong> It generated checklists, micro-templates, and alternative phrasings on demand, which helped us move faster without skipping the verification steps.</li>
-<li><strong>Sanity checks:</strong> It was useful for quick checks on validation design (forward-chaining + embargo), metric definitions, and common pitfalls. This saved us time while we kept control of decisions.</li>
+<li><strong>Rapid Idea Generation:</strong> It generated checklists, micro-templates, and alternative phrasings on demand, which helped us move faster without skipping the verification steps.</li>
+<li><strong>Checkpoints:</strong> It was useful for quick checks on validation design (forward-chaining + embargo), metric definitions, and common pitfalls. This saved us time while we kept control of decisions.</li>
 </ul>
 <p>Overall, the LLM worked like a sharp editor and sounding board: it helped us restructure, clarify, and polish, while we did the design, execution, and final judgement calls.</p>
+<div style="page-break-after: always;"></div>
 </section>
 <section id="references" class="level2">
 <h2 class="anchored" data-anchor-id="references">References</h2>
@@ -704,6 +1088,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <li><p>Shi, X., Cao, W. and Raschka, S. (2021) ‘Deep Neural Networks for Rank-Consistent Ordinal Regression Based on Conditional Probabilities’, <em>arXiv preprint</em> arXiv:2111.08851. Available at: <a href="https://arxiv.org/abs/2111.08851" class="uri">https://arxiv.org/abs/2111.08851</a>.</p></li>
 <li><p>Lim, B. and Zohren, S. (2021) ‘Time-series forecasting with deep learning: a survey’, <em>Philosophical Transactions of the Royal Society A: Mathematical, Physical and Engineering Sciences</em>, 379(2194), 20200209. <a href="https://doi.org/10.1098/rsta.2020.0209" class="uri">https://doi.org/10.1098/rsta.2020.0209</a>.</p></li>
 </ul>
+<div style="page-break-after: always;"></div>
 </section>
 <section id="appendix" class="level2">
 <h2 class="anchored" data-anchor-id="appendix">Appendix</h2>
@@ -713,7 +1098,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-43-9.png" class="img-fluid figure-img" width="576"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-41-9.png" class="img-fluid figure-img" width="576"></p>
 <figcaption>Proportion of FAH levels in the train and test splits (row-level)</figcaption>
 </figure>
 </div>
@@ -723,7 +1108,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-44-1.png" class="img-fluid figure-img" width="480"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-42-1.png" class="img-fluid figure-img" width="480"></p>
 <figcaption>Percentage of missing values by variable (top 25).</figcaption>
 </figure>
 </div>
@@ -736,7 +1121,7 @@ Conflict cases were retained and flagged; duplicates that differed only by missi
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-50-1.png" class="img-fluid figure-img" width="576"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-48-1.png" class="img-fluid figure-img" width="576"></p>
 <figcaption>Observed vs imputed distributions.</figcaption>
 </figure>
 </div>
@@ -744,7 +1129,7 @@ Conflict cases were retained and flagged; duplicates that differed only by missi
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-50-2.png" class="img-fluid figure-img" width="576"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-48-2.png" class="img-fluid figure-img" width="576"></p>
 <figcaption>Observed vs imputed distributions.</figcaption>
 </figure>
 </div>
@@ -752,7 +1137,7 @@ Conflict cases were retained and flagged; duplicates that differed only by missi
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-50-3.png" class="img-fluid figure-img" width="576"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-48-3.png" class="img-fluid figure-img" width="576"></p>
 <figcaption>Observed vs imputed distributions.</figcaption>
 </figure>
 </div>
@@ -765,17 +1150,7 @@ Conflict cases were retained and flagged; duplicates that differed only by missi
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-51-1.png" class="img-fluid figure-img" width="576"></p>
-<figcaption>Confusion matrix on the test set; numbers show counts (top) and row-normalised rates (bottom)</figcaption>
-</figure>
-</div>
-</div>
-</div>
-<div class="cell">
-<div class="cell-output-display">
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-52-3.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-49-1.png" class="img-fluid figure-img" width="672"></p>
 <figcaption>Per-class precision, recall, and F1 on the test set.</figcaption>
 </figure>
 </div>
@@ -785,7 +1160,7 @@ Conflict cases were retained and flagged; duplicates that differed only by missi
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-53-5.png" class="img-fluid figure-img" width="864"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-50-3.png" class="img-fluid figure-img" width="864"></p>
 <figcaption>Comparison of the neural model to baselines on QWK (higher is better) and MAE (lower is better).</figcaption>
 </figure>
 </div>
@@ -795,7 +1170,7 @@ Conflict cases were retained and flagged; duplicates that differed only by missi
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-54-7.png" class="img-fluid figure-img" width="480"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-51-5.png" class="img-fluid figure-img" width="480"></p>
 <figcaption>Tuned CORN decision thresholds (<span class="math inline">\(\tau\)</span>) used to convert probabilities into ordinal labels.</figcaption>
 </figure>
 </div>
@@ -805,7 +1180,7 @@ Conflict cases were retained and flagged; duplicates that differed only by missi
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-55-9.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-52-7.png" class="img-fluid figure-img" width="672"></p>
 <figcaption>Proportion of FAH levels at the window level (what the LSTM actually trained on) in train vs test.</figcaption>
 </figure>
 </div>

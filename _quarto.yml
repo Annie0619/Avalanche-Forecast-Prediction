@@ -8,8 +8,10 @@ website:
     left:
       - href: index.qmd
         text: Home
-      - A1_Report_Final_Draft_html.qmd
-      - LLMs_statement.qmd
+      - href: A1_Report_Final_Draft_html.qmd
+        text: Paper
+      - href: LLMs_Statement.qmd
+        text: AI Statement
       
 format:
   html:

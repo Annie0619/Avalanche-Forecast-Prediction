@@ -1,25 +1,29 @@
 ---
 title: " "
-format:
-  html:
-    toc: true
-    toc-depth: 3
-    number-sections: false
-    code-fold: true
-    code-summary: "Show code"
-    df-print: paged
-    smooth-scroll: true
-    link-external-newwindow: true
-    # css: styles.css   # (optional) add custom CSS
-filters:
+format: 
+  pdf:
+    pdf-engine: tectonic
+    keep-tex: true
+    include-in-header:
+      text: |
+        \usepackage{microtype}              % better justification
+        \usepackage{xurl}                   % break long URLs
+        \setlength{\emergencystretch}{3em}  % avoid overfull boxes
+        \usepackage{fvextra}                % wrap code blocks
+        \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere}
+        \usepackage[a4paper, left=2cm, right=2cm, top=2.5cm, bottom=2.5cm]{geometry}
+        \usepackage{booktabs} % nicer table rules for kable/latex
+        \usepackage{caption}
+        %\captionsetup[table]{position=top} % caption above tables
+filters: 
   - clean-unicode.lua
 editor: visual
 engine: knitr
 execute:
-  echo: false
+  echo: false       # hide code by default (still runs) 
   message: false
   warning: false
-  cache: false
+  cache: false #true       # speed + reproducibility
   freeze: false
 ---
 
@@ -30,7 +34,7 @@ execute:
 {\LARGE Assignment 1 - Report \par}
 \vspace{2cm}
 {\Large Christopher Allpass-Jackson (ALLCHR011) \par}
-{\Large Andomei Smit (SMTAND051) \par}
+{\Large Andomei Smit \par}
 {\Large Daniela Stevenson (STVDAN011) \par}
 \vfill
 {\large \today \par}
@@ -52,79 +56,40 @@ Data preparation (in R) standardises identifiers, audits and repairs missing val
 
 Methodologically, we use a sequence model to reflect that hazard depends on recent conditions. We frame each area-day as a one-step-ahead forecast and feed the model a fixed 10-day look-back of daily predictors together with static site attributes. This mirrors the standard time-series set-up in which inputs comprise a recent window of observations plus static metadata (Lim and Zohren, 2021; Eq. 2.1). We implement the encoder with an LSTM over the 10-day window and concatenate the static features before the output layer.
 
-## Data & Methods
-
-```{r}
-#| label: r-libpaths
-#| include: false
-Sys.setenv(R_LIBS_USER = "")  # ignore user library for this session
-
-env_lib <- file.path(Sys.getenv("CONDA_PREFIX"),
-                     if (.Platform$OS.type == "windows") "Lib/R/library" else "lib/R/library")
-.libPaths(unique(c(env_lib, .Library)))  # env first, then base
-
-cat("LibPaths:\n"); print(.libPaths())
-if (requireNamespace("rlang", quietly = TRUE)) {
-  cat("rlang version: ", as.character(packageVersion("rlang")), "\n")
-}
-
-
-```
-
 ```{r}
 #| label: setup
 #| include: false
-#| cache: false
-suppressPackageStartupMessages(library(reticulate))
+library(reticulate)
 
 env_name <- "ds4i-mixed"
 
-# --- locate a conda binary -----------------------------------------------
+# 1) Try a system conda first
 conda_bin <- tryCatch(conda_binary("auto"), error = function(e) NA_character_)
-if (is.na(conda_bin) || !nzchar(conda_bin) || !file.exists(conda_bin)) {
-  # Fall back to reticulate-managed Miniconda (per-user, no admin)
-  if (!dir.exists(miniconda_path())) {
-    message("No system conda detected; installing a private Miniconda (one-time)…")
-    install_miniconda()
-  }
-  conda_bin <- if (.Platform$OS.type == "windows")
-    file.path(miniconda_path(), "condabin", "conda.bat")
-  else
-    file.path(miniconda_path(), "bin", "conda")
-}
-Sys.setenv(RETICULATE_CONDA = conda_bin)
+have_env  <- tryCatch(env_name %in% conda_list(conda = conda_bin)$name, error = function(e) FALSE)
 
-# --- ensure the env exists & has needed Python packages -------------------
-needs <- c("python=3.11","numpy=2.0","pandas=2.2","matplotlib=3.9",
-           "scikit-learn","optuna","pytorch","torchvision")
+if (have_env) {
+  use_condaenv(condaenv = env_name, conda = conda_bin, required = TRUE)
 
-envs <- tryCatch(conda_list(conda = conda_bin), error = function(e) data.frame())
-if (!isTRUE(env_name %in% envs$name)) {
-  message("Creating conda env '", env_name, "' …")
-  conda_create(envname = env_name, packages = "python=3.11",
-               channel = "conda-forge", conda = conda_bin)
-  conda_install(envname = env_name, packages = needs,
-                channel = "conda-forge", conda = conda_bin)
 } else {
-  # Best-effort update; ignore errors so renders still proceed
-  try(conda_install(envname = env_name, packages = needs,
-                    channel = "conda-forge", conda = conda_bin), silent = TRUE)
+  # 2) Ensure reticulate's private Miniconda exists; install if not
+  if (!dir.exists(miniconda_path())) install_miniconda()  # one-time bootstrap
+
+  # Use the reticulate-managed Miniconda explicitly
+  use_miniconda(required = TRUE)
+
+  # Create env if missing, then install Python deps from conda-forge
+  if (!(env_name %in% conda_list()$name)) {
+    conda_create(envname = env_name, packages = "python=3.11", channel = "conda-forge", conda = conda_bin)
+  }
+  conda_install(envname = env_name,
+                packages = c("numpy=2.0","pandas=2.2","matplotlib=3.9",
+                             "scikit-learn","optuna","pytorch","torchvision"),
+                channel = "conda-forge", conda = conda_bin)
+
+  use_condaenv(env_name, conda = conda_bin, required = TRUE)
 }
 
-# --- bind Python for this session ----------------------------------------
-use_condaenv(condaenv = env_name, conda = conda_bin, required = TRUE)
-
-# --- help Quarto CLI find THIS R (fixes "cannot find path/version" on Windows) ---
-rscript <- normalizePath(file.path(R.home("bin"),
-                                   if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript"),
-                         mustWork = FALSE)
-Sys.setenv(QUARTO_R = rscript)
-
-# --- diagnostics (prints once in the render log) --------------------------
-cat("conda:", conda_bin, "\n")
-cat("Rscript (QUARTO_R):", rscript, "\n")
-print(py_config())
-
+py_config()  # show the bound Python
 ```
 
 ### Data
@@ -138,9 +103,7 @@ Predictors comprise:\
 2. **Contemporaneous meteorology** near the forecast location - summit air temperature, summit wind speed and direction, lower-level winds, cloud, and insolation.\
 3. **Snowpack observations** derived from field tests - snow temperature, maximum temperature and hardness gradients, foot and ski penetration indices, crystal type, wetness, and a derived stability index.
 
-The observed hazard (OAH) was removed from the dataset to prevent leakage.
-
-\newpage
+To avoid information leakage for the FAH task, the observed hazard on the following day (OAH) was removed from the analysis dataset.
 
 ### Methods: Data Preparation, Cleaning, and Pre-processing
 
@@ -167,7 +130,7 @@ aval <- aval %>% select(-OAH)
 
 #### Type standardisation and initial feature engineering
 
-We parsed timestamps into date components (year, month, DOY, season), converted IDs to appropriate types (e.g., `Area` as a factor), and stored FAH as an ordered factor (`FAH_ord`) to preserve ordinal structure for modelling and evaluation.
+We converted timestamps to Date and derived year, month, day-of-year (`doy`), and meteorological season (DJF/MAM/JJA/SON). Identifiers and descriptors were given sensible types (e.g., `Area` as a factor; OS grid and location as character). The hazard response was stored as an ordered factor (`FAH_ord`) using the level order defined above. These steps preserve the outcome's ordinal structure for modelling and evaluation and add explicit seasonality features for downstream encoding.
 
 ```{r}
 # Types & Engineered Features 
@@ -206,7 +169,7 @@ aval <- aval %>%
 
 #### Spatial consistency checks
 
-OS grids represents areas rather than single points, so longitude, latitude, and altitude vary within them. Therefore, we did not impute altitude from the grid ID: since each grid covers heterogeneous terrain, we instead queried elevation using precise coordinates.
+We examined whether OS grids denote unique points. Longitude and latitude vary within OS grids, indicating that an OS grid represents an area rather than a single coordinate. Altitude is not constant within OS grids. Accordingly, altitude should not be imputed from the OS grid identifier alone: since each grid covers heterogeneous terrain, we instead query elevation using the precise latitude-longitude coordinates.
 
 ```{r}
 # Spacial Checks
@@ -292,9 +255,11 @@ dup_summary <- tibble(
 
 #### Missingness audit and design of indicators
 
-We measured missingness per variable and, where the absence was informative, created 0/1 'was-missing' flags before any outlier recoding. These were made for: AV.cat, Ski.pen, Crystals, Wetness, Snow.Index, and summit weather fields (Wind Dir/Speed, Air Temp). Creating these early preserves the original data structure. Fields like Max.Temp.Grad, Max.Hardness.Grad are blank when no snow pit is done. So, we imputed those numeric blanks downstream rather than adding indicators.
+We first measured missingness per variable and inspected its pattern. Where the absence itself could be informative, we created explicit 0/1 "was-missing" flags (before any outlier recoding). These indicators were made for: AV.cat, Ski.pen, Crystals, Wetness, Snow.Index, and the summit weather fields (Summit.Wind.Dir, Summit.Wind.Speed, Summit.Air.Temp). Doing this early ensures the indicators reflect the data as collected and aren't confounded by later plausibility filters.
 
-**Snow.Index check:** Many values are exactly zero. We tested whether zeros signified 'no test' and found they did not, i.e., rows with zeros showed no elevated missingness in pit variables. We therefore kept zeros as valid measurements and treated only NAs as missing.
+Some fields (e.g., Max.Temp.Grad, Max.Hardness.Grad) are only measured when a snow pit is carried out. When no pit is done those fields are blank by design, so we did not add extra "missing" indicators; instead, we impute those numeric blanks downstream for modelling.
+
+**Snow.Index check:** Because many values are exactly zero, we tested whether Snow.Index == 0 was being used as a stand-in for "no test." It wasn't: rows with Snow.Index = 0 didn't show elevated missingness in pit variables, so zeros appear to be legitimate measurements (e.g., stable conditions). We therefore kept zeros as valid values and treated only NA as missing.
 
 ```{r}
 # Missingness audit + indicators:
@@ -328,7 +293,7 @@ aval <- aval %>%
 
 #### Physically defensible plausibility filters
 
-We applied conservative plausibility checks and recoded violations to `NA` for later imputation. The limits reflect basic physical and local constraints (e.g., angles in $0{-}360^\circ$, non-negative depths).
+We applied conservative real-world plausibility checks and recoded any violations to `NA` so they can be handled by imputation rather than ad-hoc edits. The limits reflect basic constraints (e.g., angles in $0{-}360^\circ$, non-negative depths) and local context.
 
 -   Directional variables (Aspect, Wind.Dir, Summit.Wind.Dir): values outside $[0^\circ, 360^\circ]$ set to `NA`.\
 -   Snow temperature ($^\circ$C): values $> 5$ set to NA (snow cannot persist above $\sim 0^\circ$C; a small buffer accommodates sensor and entry noise).\
@@ -338,6 +303,8 @@ We applied conservative plausibility checks and recoded violations to `NA` for l
 -   Total snow depth (cm): values $<0$ or $>500$ set to NA (regional plausibility).\
 -   Maximum temperature gradient ($^\circ$C/10 cm): values $> 10$ set to NA.\
 -   Altitude (m): values $<0$ or $>1400$ set to NA (Scotland's highest peak $\approx 1345$ m).
+
+Marking impossible readings as `NA` prevents them from skewing summaries or model fits and lets the downstream multivariate imputer estimate plausible replacements from the remaining data.
 
 ```{r}
 # Plausibility filters + hidden diagnostics:
@@ -380,7 +347,7 @@ rules_tbl <- tribble(
 
 #### Altitude repair via coordinate-based elevation lookup
 
-For missing altitudes, we queried an open elevation service at rounded coordinates and filled `Alt` where values were returned. One query returned $0$ m (a sea-loch), indicating a geolocation error. We replaced it with the area mean (Creag Meagaidh) and re-queried. Results are cached locally for deterministic compilation and used if the service is unavailable.
+For the small number of missing altitudes, we queried an open elevation service at rounded (`latitude`, `longitude`) and filled `Alt` where a value was returned. One queried coordinate yielded $0$ m (a sea-loch), indicating a geolocation error. For that single case, we replaced the coordinate with the area mean (Creag Meagaidh) and re-queried. To ensure deterministic compilation, elevation results are cached locally; subsequent runs read from cache if the service is unavailable.
 
 ```{r}
 ### Open-Elevation lookup with simple CSV cache for determinism
@@ -451,7 +418,7 @@ if (nrow(to_fill) > 0) {
 
 #### Circular encodings for directional variables
 
-As angles wrap at $360^\circ$, treating them as numeric creates an artificial jump between $359^\circ$ and $0^\circ$. We replaced each directional variable (`Wind.Dir`, `Summit.Wind.Dir`, `Aspect`) with the sine and cosine of the angle (radians). This keeps $0^\circ$ and $360^\circ$ close in feature space, and removes the wrap-around discontinuity. Missing angles remained missing in both components and were imputed later.
+As angles wrap around at $360^\circ$, treating them as ordinary numbers creates an artificial jump between $359^\circ$ and $0^\circ$. We therefore replaced each directional variable (`Wind.Dir`, `Summit.Wind.Dir`, `Aspect`) with two new variables that locate the direction on the unit circle: the sine and cosine of the angle (in radians). This keeps $0^\circ$ and $360^\circ$ close in feature space, and removes the wrap-around discontinuity, which helps and yields smoother relationships for the models. Missing angles remained missing in both components and were imputed later.
 
 ```{r}
 ### Encode angles as circular after cleaning
@@ -469,7 +436,7 @@ aval <- aval %>%
 
 #### Time-aware splitting and leakage control
 
-We split the data chronologically into $80\%$ training and $20\%$ test (non-overlapping), dropping rows with missing `Date` or target (`FAH_ord`) before the split. We checked class balance in each split. The High level is very rare and absent in the test window, so performance on it cannot be evaluated. All preprocessing (imputation, scaling, encoding) was fit on the training set and applied unchanged to the test set to avoid leakage.
+The data was split chronologically into $80\%$ training and $20\%$ test by calendar time (no overlap).Any rows missing a `Date` or the target (`FAH_ord`) were dropped before the split. We checked class balance in each split; the High level is very rare and does not appear in the test window (so performance on that class cannot be evaluated). All preprocessing steps were fit on the training set only (e.g., imputation, scaling, encoding) and then applied unchanged to the test set. This setup avoids information leakage.
 
 ```{r}
 ### Chronological split 80/20; drop missing Date/FAH before split
@@ -503,9 +470,11 @@ A single, train-fitted `recipes` pipeline was implemented with the following sta
 3.  **Imputation:** Categorical variables were imputed by mode; numerical variables by bagged-tree imputation (bootstrap ensembles estimated on the training data), which captures non-linearities and interactions in mixed meteorological and snowpack features more effectively than mean or KNN imputation.\
 4.  **Encoding:** One-hot encoding of categorical predictors (including `Area`).\
 5.  **Variance filtering:** Removal of zero-variance and near-zero-variance predictors.\
-6.  **Scaling:** Standardisation of numerical predictors, excluding the 0/1 informative-missing indicators (and area dummies).\
+6.  **Scaling:** Standardisation of numerical predictors, excluding the 0/1 informative-missing indicators (and area dummies) to preserve their interpretability.\
 7.  **Seasonality:** Replacement of discrete season dummies with smooth cyclical features $doy\_sin$ and $doy\_cos$ (constructed from day-of-year with leap years handled); season binaries were removed to reduce collinearity.\
 8.  **Target mapping:** The ordered response was mapped once to integers $0{-}4$ to provide a single source of truth for neural-network models.
+
+The recipe was prepped on the training set (estimating imputation models, encoding maps, and scaling parameters) and then baked on both training and test splits to yield model-ready matrices (`x_train`, `x_test`). For downstream modelling and plotting, a `Date` column was retained; final matrices ($X\_{train}$, $X\_{test}$) include the integer-encoded target as the last column.
 
 ```{r}
 ### Build recipes pipeline (fit on TRAIN only, then bake to both splits)
@@ -581,7 +550,7 @@ write.csv(X_test,  "X_test.csv",  row.names = FALSE)
 
 #### Reproducibility, diagnostics, and assumptions
 
-We fixed random seeds and kept all data-prep and modelling steps in a single scripted pipeline. After baking the recipe, there were no remaining missing values in either split. We re-checked the composite key (`Date`, `OSgrid`, `Area`) after duplicate handling, and we spot-checked distributions of imputed variables to make sure they looked reasonable. Elevation queries are cached locally, so reruns do not depend on the external service.
+We fixed random seeds and kept all data-prep and modelling steps in a single scripted pipeline so that results are reproducible across runs. After baking the recipe, there were no remaining missing values in either split. We re-checked the composite key (`Date`, `OSgrid`, `Area`) after duplicate handling, and we spot-checked distributions of imputed variables to make sure they looked reasonable (plots not shown for space). Elevation queries are cached locally, so reruns do not depend on the external service.
 
 Our working assumptions were:\
 (i) the value ranges we used to flag implausible measurements reflect Scottish conditions;\
@@ -590,17 +559,14 @@ Our working assumptions were:\
 
 #### Limitations and sensitivity considerations
 
-The High hazard class is rare (and absent in our test window) so standard accuracy alone can be misleading. We therefore report macro-averaged scores and discuss calibration in the results, but performance on the very rarest conditions remains uncertain. The plausibility cut-offs (e.g., the threshold for snow temperature) are conservative choices, not unique truths; reasonable alternatives could be used, and results may shift slightly.
-
-Finally, because we split by time, outcomes can vary with the split date (e.g., if conditions change from one season to the next). This is typical in operational forecasting, so sensitivity checks (e.g., alternate split points or small variations in thresholds and look-back length) would be a natural extension.
+The High hazard class is rare (and absent in our test window) so standard accuracy alone can be misleading. We therefore report macro-averaged scores and discuss calibration in the results, but performance on the very rarest conditions remains uncertain. The plausibility cut-offs (e.g., the threshold for snow temperature) are conservative choices, not unique truths; reasonable alternatives could be used, and results may shift slightly.\
+Finally, because we split by time, outcomes can vary with the split date (e.g., if conditions change from one season to the next). This is typical in operational forecasting; sensitivity checks (e.g., alternate split points or small variations in thresholds and look-back length) would be a natural extension.
 
 ### Methods: Neural ordinal forecasting model
 
-The neural network implementation was done in python, using PyTorch. Given the temporal component of the data, a recurrent network architecture was used over a standard feed-forward setup, which is incapable of "remembering" anything about past observations. Specifically, a Long Short Term Memory (LSTM) design was employed, which is less susceptible to vanishing and exploding gradients.
+The neural network implementation was done in python, using the popular PyTorch deep learning library. Given the temporal component of the data, a recurrent network architecture was used over a standard feed-forward setup, which is incapable of "remembering" anything about past observations. Specifically, a Long Short Term Memory (LSTM) design was employed, which are less susceptible to vanishing and exploding gradients.
 
 ```{python}
-#| results: "hide"
-
 ## Imports & data ingest (from R exports)
 
 # Reproducible, quiet imports
@@ -637,13 +603,11 @@ target_col = "FAH_ord"
 
 #### Data interface and temporal windows
 
-The data were split into sequences for the recurrent architecture. Static features (longitude, latitude, altitude, incline, area dummies) were held constant across sequences, while dynamic features comprised all remaining numeric variables and the missingness indicators. A new feature of the previous day's hazard rating, `FAH_prev`, was created and added to the dynamic set.
+The data were split into sequences for the recurrent architecture. The variables were divided into static and dynamic categories, with the static features uniform in the sequence. These features were longitude, latitude, altitude, incline, and area binaries, and the dynamic features were all remaining numeric variables, and the missingness indicators from the preprocessing stage. In adddition, a new feature of the previous day's hazard rating, FAH_prev, was created and included in the dynamic category.
 
-Area-wise sliding windows with look-back $L = 10$ days and horizon $H = 0$ were built with an embargo (Lim and Zohren, 2021; Eq. 2.1). The train/test split matches the R setup ($80\%$ earliest dates for training, remaining $20\%$ for testing), and windows were constructed after concatenation and filtered by the target date to prevent test leakage.
+Area-wise sliding windows with look-back $L = 10$ days and horizon $H = 0$ were constructed, with an embargo (Lim and Zohren, 2021; Eq. 2.1). The train/test boundary follows the R split ($80\%$ earliest dates for training; remaining $20\%$ for testing). Windows are built after concatenating and then filtering by the **target date** so that nothing from the test period influences training.
 
 ```{python}
-#| results: "hide"
-
 ## Sequence Construction & Feature Partition
 
 ### Prepare Sequences
@@ -674,8 +638,6 @@ if "FAH_prev" not in dynamic_cols:
 ```
 
 ```{python}
-#| results: "hide"
-
 ## Sliding windows (L=10, H=0) and Split
 ### window builder with target dates preserved
 
@@ -720,26 +682,27 @@ Xseq_te, Xsta_te, y_te = Xseq_all[is_test],  Xsta_all[is_test],  y_all[is_test]
 
 #### Architecture and loss (CORN-LSTM)
 
-The LSTM's final hidden state after being trained is passed through a small MLP head. Instead of using softmax over the class predictions and Cross-Entropy (CE) error, we used a technique called Cumulative Ordinal Regression for Neural Networks (CORN). The CORN layer follows the MLP head, and produces $K - 1$ logits that are then used to determine progress through a set of ordered binaries on whether a prediction is of a certain class, $\Pr(y > 0)$, $\Pr(y > 1)$, $\ldots$, $\Pr(y > K - 2)$. Because these events become harder as $k$ grows, their probabilities naturally decrease with $k$ (Cao, Mirjalili and Raschka, 2020).
+The final hidden state of the LSTM after being trained is passed through a small MLP head. Instead of then using softmax over the class predictions and Cross-Entropy (CE) error, we used a technique called Cumlative Ordinal Regression for Neural Networks (CORN). The CORN layer follows the MLP head, and produces $K - 1$ logits that are then used to determine progress through a set of ordered binaries on whether a prediction is of a certain class, $\Pr(y > 0)$, $\Pr(y > 1)$, $\ldots$, $\Pr(y > K - 2)$. Because these events become harder as $k$ grows, their probabilities naturally decrease with $k$ (Cao, Mirjalili and Raschka, 2020). During training, We compute CORN targets from the true class and minimise Binary Cross-Entropy (BCE) on the $K - 1$ logits. At inference, we threshold the $K - 1$ probabilities, count how many exceed their thresholds, and that count is the predicted FAH level.
 
-During training, We compute CORN targets from the true class and minimise Binary Cross-Entropy (BCE) on the $K - 1$ logits. At inference, we threshold the $K - 1$ probabilities, count how many exceed their thresholds, and that count is the predicted FAH level. This approach is superior to CE error, which treats classes as nominal, and does not distinguish between degrees of misclassification.
+This approach is superior to CE error, which treats classes as nominal, and does not distinguish between degrees of misclassifcation.
 
 ```{python}
-#| results: "hide"
-
 ## Ordinal machinery (CORN targets, loss, prediction)
 
 ### Using two measures primarily: QWK (validation metric) and CORN (training loss)
 K = int(y_tr.max().item()) + 1  # number of classes (0..4)
 
+#builds K-1 binary labels for CORN. for each threshold k, target is 1 if y>k else 0
 def corn_targets(y, K):
     ks = torch.arange(K-1, device=y.device).unsqueeze(0).expand(y.size(0), -1)
     return (y.unsqueeze(1) > ks).float()
 
+#loss function used in training
 def corn_loss(logits, y, K, pos_weight=None):
     T = corn_targets(y, K)
     return F.binary_cross_entropy_with_logits(logits, T, pos_weight=pos_weight)
 
+#converts logits to class predictions 
 @torch.no_grad()
 def corn_predict_logits_to_labels(logits, taus=None):
     p = torch.sigmoid(logits)
@@ -785,7 +748,9 @@ def corn_pos_weight_cb(y_fold, K=5, beta=0.999, device=device):
 
 #### Class imbalance handling
 
-We addressed class imbalance between high and low hazard level predictions using two techniques: (1) oversampling in the training loader (`WeightedRandomSampler`) to increase rare FAH frequencies during optimisation, and (2) Class-balanced CORN loss, which weights each class by its effective number of samples $(1 - \beta)/(1 - \beta^{n_c})$. For each threshold $k$, we compute a positive weight ($\beta = 0.999$) and apply it in the BCE term so rare exceedance events $(y > k)$ contribute proportionally more without duplicating data (Cui et al., 2019). This has the effect of upweighting rare events, making them mater more in the BCE loss.
+Two techniques were employed to counteract the imbalance between high and low hazard level predictions in the dataset: Batch oversampling and Class-balanced CORN loss**.** In the case of the former,Oversampling in the training loader (`WeightedRandomSampler`) to increase the frequency of rarer FAH levels during optimisation, so minority levels appear more often in batches.
+
+In the latter, we apply the class-balanced loss based on the effective number of samples, which weights each class by $(1 - \beta)/(1 - \beta^{n_c})$. For each threshold $k$, we compute a positive weight ($\beta = 0.999$) and apply it in the BCE term, so rare exceedance events $(y > k)$ contribute proportionally more without duplicating data (Cui et al., 2019). This has he effect of upweighting rare events, making them mater more in the BCE loss.
 
 ```{python}
 ## Dataloaders, training loop, and validation routine (+ sampler)
@@ -877,7 +842,7 @@ def corn_pos_weight_cb(y_fold, K=5, beta=0.999, device=device):
 
 #### Validation protocol, hyperparameter search, and early stopping
 
-In order to conduct hyperparameter tuning for the chosen model architecture, an appropriate validation framework was implemented. In order to maximise data for training and testing, cross validation was employed. We created forward-chaining time folds ($K=5$) with an embargo of length \$ L \$ before each validation slice to avoid look-ahead leakage. For a fold k, the validation set is a contiguous block of unique target dates, and the training is all earlier sequences, except for the embargo before the validation block to prevent leakage. This means that there is an expanding window as we move forward in time, so the training includes more history, and there is no random shuffling, which would be inappropriate in this context.
+In order to conduct hyperparameter tuning for the chosen model architecture, an appropriate validation framework was implemented. In order to maximise data for training and testing, cross validation was employed. We created forward-chaining time folds ($K=5$) with anembargo of length \$ L \$ before each validation slice to avoid look-ahead leakage. For a fold k, the validation set is a contigous block of unique target dates, adn the training is all earlier sequences, except for the embargo before the validation block to prevent leakage. This means that the there is an expanding window as we move forward in time, so the training includes more history, and there is no random shuffling, which would be inappropriate in this context.
 
 We tuned hyperparameters with **Optuna** over:
 
@@ -958,12 +923,11 @@ folds = make_time_folds(tgt_dates_tr, K=5, gap_days=10)
 
 #### Threshold calibration (monotone $\tau$)
 
-After selection, the model was refit on all training windows and thresholds were calibrated on the most recent validation fold, then fixed for test, since the last validation fold should be more similar to the test distribution. These thresholds are used to turn the CORN outputs of $K - 1$ probabilities into labels. They were tuned on the latest validation fold using a simple grid over $0.3$-$0.7$, selecting the vector that maximises QWK. they are monotone non-increasing, $\tau_1 \ge \tau_2 \ge \cdots \ge \tau_{K-1}$ , because $\Pr(y > k)$ decreases with $k$; later thresholds should never be easier to exceed than earlier ones.
+After selection, the model was refit on all training windows and thresholds were calibrated on the most recent validation fold, then fixed for test, since the last validation fold should be more similar to the test distribution. These thresholds are used to turn the CORN outputs of $K - 1$ probabilities into labels. They were tuned on the latest validation fold using a simple grid over $0.3$-$0.7$, selecting the vector that maximises QWK. they are monotone non_increasing, $\tau_1 \ge \tau_2 \ge \cdots \ge \tau_{K-1}$ , because $\Pr(y > k)$ decreases with $k$; later thresholds should never be easier to exceed than earlier ones.
 
 The tuned vector used for test was:
 
-$$ \tau = [0.52, \; 0.50, \; 0.50, \; 0.48].
-$$
+$$ \tau = [0.52, \; 0.50, \; 0.50, \; 0.48]. $$
 
 ```{python}
 random.seed(2025)
@@ -1105,8 +1069,6 @@ np.savez_compressed("artifacts/test_preds_ytrue.npz",
 
 ```{python}
 random.seed(2025)
-#| results: "hide"
-
 ## Confusion matrix & per-class report (for RESULTS section later)
 from sklearn.metrics import confusion_matrix, classification_report
 import numpy as np
@@ -1141,8 +1103,6 @@ We report the same metrics used for the neural model (Accuracy, Macro-F1, MAE, Q
 
 ```{python}
 random.seed(2025)
-#| results: "hide"
-
 ## Baselines
 
 import numpy as np, pandas as pd, json, os
@@ -1219,8 +1179,6 @@ with open("artifacts/baseline_metrics.json", "w") as f:
 
 ```
 
-\newpage
-
 ## Results
 
 We evaluate the tuned LSTM-CORN on the held-out test window and compare it with three simple baselines.\
@@ -1228,13 +1186,11 @@ All settings were fixed before touching the test set. We report Accuracy, Macro-
 a confusion matrix and per-class summary show where errors occur.
 
 ```{python}
-#| fig-show: "hide"
-random.seed(2025)
 import json, pandas as pd
 
 with open("artifacts/test_metrics.json") as f:
     m = json.load(f)
-model_row = {"Model": "LSTM-CORN (tuned tau)",
+model_row = {"Model": "LSTM-CORN (tuned $\\tau$)",
              "acc": m["acc"], "macroF1": m["f1"], "MAE": m["mae"], "QWK": m["qwk"]}
 
 with open("artifacts/baseline_metrics.json") as f:
@@ -1251,7 +1207,44 @@ tbl = pd.DataFrame(rows)[["Model","acc","macroF1","MAE","QWK"]]
 
 ```
 
-```         
+```{python}
+#| label: tbl-metrics
+#| results: asis
+import pandas as pd
+
+# pretty column names + rounding
+pretty = (
+    tbl.rename(columns={"acc": "Accuracy", "macroF1": "Macro-F1"})
+       .assign(
+           Accuracy = tbl["acc"].map("{:.3f}".format),
+           **{"Macro-F1": tbl["macroF1"].map("{:.3f}".format)},
+           MAE = tbl["MAE"].map("{:.3f}".format),
+           QWK = tbl["QWK"].map("{:.3f}".format)
+       )
+)
+
+
+latex = pretty.to_latex(
+    index=False,
+    escape=False,              # keep LaTeX in "Model" (your $\tau$)
+    column_format="lrrrr",     # left + 4 right-aligned numeric cols
+    caption="Performance comparison between LSTM-CORN and baseline models.",
+    label="tab:metrics",
+    bold_rows=False
+)
+
+print(latex)
+
+
+```
+
+### Validation Set-Up
+
+We validated with forward-chaining time folds and a 10-day embargo between training and validation windows, ensuring the model never "sees" information from the future of the validation period. Hyperparameters maximised mean QWK across folds, and after selection, we recalibrated thresholds on the most recent fold (the one closest in time to the test window).
+
+```{python}
+# Renders a small schematic string so the choices are explicit in the report
+print("Validation = forward-chaining (K=5) with 10-day embargo; objective = mean QWK across folds.")
 ```
 
 ### Class Balance: Train vs Test
@@ -1317,53 +1310,69 @@ for col in wide.columns:
 ```
 
 ```{python}
-#| label: tbl:class-balance-html
-#| results: asis
+#| label: tbl:class-balance-latex
 #| echo: false
+#| results: asis
 
 import pandas as pd
 
-# Build a wide table with a MultiIndex header to get grouped HTML headers
-wide_html = (
+# Build numerics (no % strings yet)
+wide = (
     class_balance.assign(pct=lambda d: d["pct"].round(1))
-        .pivot(index="FAH", columns="split", values=["count", "pct"])
-        .sort_index()
+                 .pivot(index="FAH", columns="split", values=["count","pct"])
+                 .sort_index()
 )
 
-# Ensure expected columns exist and in the intended order
+# Make sure expected columns exist and order them
 needed = [("count","Test"), ("count","Train"), ("pct","Test"), ("pct","Train")]
 for col in needed:
-    if col not in wide_html.columns:
-        wide_html[col] = 0
-wide_html = wide_html[needed].reset_index().rename(columns={"FAH": "FAH level"})
+    if col not in wide.columns:
+        wide[col] = 0
+wide = wide[needed].reset_index().rename(columns={"FAH":"FAH level"})
 
-# Rename level names for prettier group headers
-wide_html.columns = pd.MultiIndex.from_tuples(
-    [("","FAH level")] + [("count","Test"), ("count","Train"), ("percent","Test"), ("percent","Train")],
-    names=["", ""]
-)
+# Format helpers
+def fmt_int(x):
+    try: return f"{int(round(x)):,}"
+    except: return ""
 
-# Styler: bootstrap-y look, caption on top, alignment tweaks
-styler = (
-    wide_html.style
-        .hide(axis="index")  # use .hide_index() if your pandas is older
-        .set_caption("FAH class balance by split.")
-        .set_table_attributes('class="table table-sm table-striped"')
-        .format({
-            ("count","Test"):  "{:,.0f}",
-            ("count","Train"): "{:,.0f}",
-            ("percent","Test"):  "{:.1f}%",
-            ("percent","Train"): "{:.1f}%"
-        })
-        .set_properties(subset=[("","FAH level")], **{"text-align": "left", "white-space": "nowrap"})
-        .set_table_styles([
-            {"selector": "th", "props": [("text-align","right")]},
-            {"selector": "td", "props": [("text-align","right")]},
-            {"selector": "caption", "props": [("caption-side","top"), ("font-weight","600")]}
-        ])
-)
+def fmt_pct(x):
+    try: return f"{float(x):.1f}\\%"
+    except: return ""
 
-print(styler.to_html(escape=False))
+# Build display frame (formatted strings)
+disp = pd.DataFrame({
+    "FAH level": wide["FAH level"].astype("Int64").astype(str),
+    "Test rows": [fmt_int(v) for v in wide[("count","Test")]],
+    "Train rows": [fmt_int(v) for v in wide[("count","Train")]],
+    "Test %":    [fmt_pct(v) for v in wide[("pct","Test")]],
+    "Train %":   [fmt_pct(v) for v in wide[("pct","Train")]],
+})
+
+# Assemble LaTeX with grouped headers; Quarto includes booktabs
+header = r"""\begin{table}[ht]
+\centering
+\caption{FAH class balance by split.}
+\label{tab:class-balance-wide}
+\begin{tabular}{lrrrr}
+\toprule
+& \multicolumn{2}{r}{\textbf{count}} & \multicolumn{2}{r}{\textbf{percent}} \\
+\cmidrule(lr){2-3}\cmidrule(l){4-5}
+\textbf{FAH level} & \textbf{Test} & \textbf{Train} & \textbf{Test} & \textbf{Train} \\
+\midrule
+"""
+
+rows = [f"{r['FAH level']} & {r['Test rows']} & {r['Train rows']} & {r['Test %']} & {r['Train %']} \\\\"
+        for _, r in disp.iterrows()]
+
+footer = r"""
+\bottomrule
+\end{tabular}
+\end{table}
+"""
+
+print(header + "\n".join(rows) + footer)
+
+
 ```
 
 The training set shows a relatively balanced distribution across Levels 0-2 (approximately $26\%$-$31\%$ each), with Level 3 at around $10\%$ and Level 4 at $5\%$ . The test set, however, is heavily skewed: Level 0 dominates ( $\approx 57\%$), followed by Level 1 ($31\%$ ), Level 2 ($8\%$), Level 3 ($4\%$), and Level 4 is virtually absent ( $\sim 0\%$).
@@ -1387,45 +1396,9 @@ plot_class_dist(class_balance)
 
 ```
 
-\newpage
-
 ### Test Performance (Model vs Baselines)
 
 Below we compare the tuned LSTM-CORN model with three simple baselines. We evaluate performance using four metrics: **Accuracy**, **Macro-F1**, **Mean Absolute Error (MAE)**, and **Quadratic Weighted Kappa (QWK)**. Accuracy measures the proportion of exact predictions but can be misleading under class imbalance (e.g., always predicting the majority class). Macro-F1 computes precision and recall per class, takes their harmonic mean, and averages equally across classes. This handles imbalance better but ignores class ordering. MAE uses the ordinal scale directly, averaging absolute differences between true and predicted levels (e.g., a miss of $0 \to 1$ counts as 1, while $0 \to 4$ counts as 4), with a range from $0$ to $K - 1$. QWK is a chance-corrected agreement measure that penalises larger ordinal gaps using quadratic weights. It ranges from 1 (perfect) to 0 (chance) and can be less than 0 (worse than chance), making it well suited to ordinal targets and useful for validation.
-
-```{python}
-#| label: tbl-metrics-html
-#| results: asis
-import pandas as pd
-
-# Start from the existing `tbl` built above
-pretty = (
-    tbl.rename(columns={"acc": "Accuracy", "macroF1": "Macro-F1"})
-       .assign(
-           Accuracy = tbl["acc"].map("{:.3f}".format),
-           **{"Macro-F1": tbl["macroF1"].map("{:.3f}".format)},
-           MAE = tbl["MAE"].map("{:.3f}".format),
-           QWK = tbl["QWK"].map("{:.3f}".format)
-       )
-)
-
-# Style for Quarto HTML (Bootstrap 5)
-styled = (
-    pretty.style
-        .hide(axis="index")  # if this errors on older pandas, use: .hide_index()
-        .set_table_attributes('class="table table-sm table-striped"')
-        .set_caption("Performance comparison between LSTM-CORN and baseline models.")
-        .set_properties(subset=["Model"], **{"text-align": "left", "white-space": "nowrap"})
-        .set_table_styles([
-            {"selector": "th", "props": [("text-align", "right")]},
-            {"selector": "td", "props": [("text-align", "right")]},
-            {"selector": "caption", "props": [("caption-side","top"), ("font-weight","600")]}
-        ])
-)
-
-# Emit raw HTML so Quarto can render it
-print(styled.to_html(escape=False))
-```
 
 ```{python}
 # Load metrics from artifacts (written by your training code)
@@ -1435,7 +1408,7 @@ with open("artifacts/baseline_metrics.json") as f:
     base_m = json.load(f)
 
 rows = [
-    {"Model":"LSTM-CORN (tuned tau)",
+    {"Model":"LSTM-CORN (tuned $\\tau$)",
      "acc":model_m["acc"], "macroF1":model_m["f1"],
      "MAE":model_m["mae"], "QWK":model_m["qwk"]},
     {"Model":"Majority (global)",   **base_m["majority_global"]},
@@ -1448,12 +1421,12 @@ results_tbl = pd.DataFrame(rows)[["Model","acc","macroF1","MAE","QWK"]]
 ```
 
 ```{python}
-#| label: tbl:results-html
+#| label: tbl:results
 #| results: asis
 #| echo: false
-
-import pandas as pd
-
+# import pandas as pd
+# 
+# Pretty column names + 3dp rounding
 pretty = (
     results_tbl.rename(columns={"acc": "Accuracy", "macroF1": "Macro-F1"}).copy()
 )
@@ -1461,21 +1434,18 @@ pretty["Accuracy"] = results_tbl["acc"].map("{:.3f}".format)
 pretty["Macro-F1"] = results_tbl["macroF1"].map("{:.3f}".format)
 pretty["MAE"]      = results_tbl["MAE"].map("{:.3f}".format)
 pretty["QWK"]      = results_tbl["QWK"].map("{:.3f}".format)
-
-styler = (
-    pretty.style
-      .hide(axis="index")  # if this errors on older pandas, use .hide_index()
-      .set_caption("Test-set performance: model vs baselines.")
-      .set_table_attributes('class="table table-sm table-striped"')
-      .set_properties(subset=["Model"], **{"text-align":"left", "white-space":"nowrap"})
-      .set_table_styles([
-          {"selector":"th", "props":[("text-align","right")]},
-          {"selector":"td", "props":[("text-align","right")]},
-          {"selector":"caption", "props":[("caption-side","top"), ("font-weight","600")]}
-      ])
+ 
+latex = pretty.to_latex(
+    index=False,
+    escape=False,                     # keep LaTeX in Model (your $\tau$)
+    column_format="lrrrr",            # left + 4 right-aligned numeric cols
+    caption="Test-set performance: model vs baselines.",
+    label="tab:results",
+    bold_rows=False
 )
 
-print(styler.to_html(escape=False))
+latex = latex.replace(r"\\begin{table}", r"\\begin{table}[ht]\centering")
+print(latex)
 
 ```
 
@@ -1556,14 +1526,14 @@ If the operational goal is to catch more 2-3 days (accepting some extra false al
 import numpy as np, pandas as pd
 from sklearn.metrics import classification_report
 
- # Ensure y_true/y_pred exist; otherwise load from artifacts
+# Ensure y_true/y_pred exist; otherwise load from artifacts
 try:
-     _ = (y_true, y_pred)          # don't print the tuple
+    _ = (y_true, y_pred)          # don't print the tuple
 except NameError:
     z = np.load("artifacts/test_preds_ytrue.npz")
     y_true, y_pred = z["y_true"], z["y_pred"]
-#
- # Build the report dict and tidy it into a DF
+
+# Build the report dict and tidy it into a DF
 rep = classification_report(
     y_true, y_pred,
     labels=[0,1,2,3,4],
@@ -1581,113 +1551,15 @@ df = df[["Class","precision","recall","f1-score","support"]].copy()
 df[["precision","recall","f1-score"]] = df[["precision","recall","f1-score"]].round(3)
 df["support"] = df["support"].astype(int)
 
-df
-# # Emit LaTeX; center the table
-# latex = df.to_latex(
-#     index=False,
-#     escape=False,
-#     column_format="lrrrr",  # 1 left + 4 numeric
-#     caption="Per-class precision, recall, F1 and support on the test set.",
-#     label="tbl:per-class"
-# )
-# print(latex.replace(r"\begin{table}", r"\begin{table}[ht]\centering"))
-
-# import numpy as np, pandas as pd
-# from sklearn.metrics import classification_report
-# from sklearn.preprocessing import LabelEncoder
-# 
-# # Load labels if not already defined
-# try:
-#     _ = (y_true, y_pred)
-# except NameError:
-#     z = np.load("artifacts/test_preds_ytrue.npz")
-#     y_true, y_pred = z["y_true"], z["y_pred"]
-# 
-# yt = np.asarray(y_true)
-# yp = np.asarray(y_pred)
-# 
-# # 1) drop rows with NaN/inf in either vector
-# def _finite_mask(a):
-#     if a.dtype.kind == "f":
-#         return np.isfinite(a)
-#     return np.ones(a.shape, dtype=bool)
-# 
-# mask = _finite_mask(yt) & _finite_mask(yp)
-# yt, yp = yt[mask], yp[mask]
-# 
-# # 2) sanitize labels
-# def sanitize_two(ya, yb, tol=1e-9):
-#     """Return integer label arrays; if not integer-like, label-encode."""
-#     def _is_intlike(x):
-#         return x.dtype.kind == "i" or (
-#             x.dtype.kind == "f" and np.all(np.isclose(x, np.rint(x), atol=tol))
-#         )
-# 
-#     if ya.dtype.kind in "OUSb" or yb.dtype.kind in "OUSb":
-#         # strings/objects/bools -> encode together
-#         enc = LabelEncoder()
-#         enc.fit(np.concatenate([ya.astype(str), yb.astype(str)]))
-#         return enc.transform(ya.astype(str)), enc.transform(yb.astype(str)), enc.classes_.astype(str)
-# 
-#     if _is_intlike(ya) and _is_intlike(yb):
-#         return np.rint(ya).astype(np.int64), np.rint(yb).astype(np.int64), None
-# 
-#     # mixed / real-valued: fall back to encoding their string forms
-#     enc = LabelEncoder()
-#     enc.fit(np.concatenate([ya.astype(str), yb.astype(str)]))
-#     return enc.transform(ya.astype(str)), enc.transform(yb.astype(str)), enc.classes_.astype(str)
-# 
-# yt_i, yp_i, class_names = sanitize_two(yt, yp)
-# 
-# # 3) choose labels to report
-# labels_list = np.unique(np.concatenate([yt_i, yp_i]))
-# # If you specifically want classes 0..4 *and* all values are within that set, keep it:
-# allowed = np.array([0,1,2,3,4], dtype=np.int64)
-# if np.isin(yt_i, allowed).all() and np.isin(yp_i, allowed).all():
-#     labels_list = allowed
-# 
-# # 4) metrics
-# rep = classification_report(
-#     yt_i, yp_i,
-#     labels=labels_list,
-#     target_names=(class_names[labels_list] if class_names is not None and labels_list.max() < len(class_names) else None),
-#     output_dict=True,
-#     zero_division=0
-# )
-# 
-# order = [str(k) for k in labels_list] + ["accuracy", "macro avg", "weighted avg"]
-# df = (pd.DataFrame(rep).T
-#         .reindex(order)
-#         .reset_index()
-#         .rename(columns={"index":"Class"}))
-# 
-# df = df[["Class","precision","recall","f1-score","support"]].copy()
-# 
-# # Fill scalar accuracy into row if needed
-# if "accuracy" in df["Class"].values:
-#     for col in ["precision","recall","f1-score"]:
-#         if pd.isna(df.loc[df["Class"]=="accuracy", col]).all():
-#             df.loc[df["Class"]=="accuracy", col] = float(rep.get("accuracy", np.nan))
-# 
-# df[["precision","recall","f1-score"]] = df[["precision","recall","f1-score"]].round(3)
-# df["support"] = df["support"].astype("Int64")  # nullable int
-# 
-# # Style and emit HTML
-# styler = (
-#     df.style
-#       .hide(axis="index")  # use .hide_index() on pandas<2
-#       .set_caption("Per-class precision, recall, F1 and support on the test set.")
-#       .set_table_attributes('class="table table-sm table-striped"')
-#       .format({"precision":"{:.3f}","recall":"{:.3f}","f1-score":"{:.3f}","support":"{:,.0f}"})
-#       .set_properties(subset=["Class"], **{"text-align":"left","white-space":"nowrap"})
-#       .set_table_styles([
-#           {"selector":"th","props":[("text-align","right")]},
-#           {"selector":"td","props":[("text-align","right")]},
-#           {"selector":"caption","props":[("caption-side","top"),("font-weight","600")]}
-#       ])
-# )
-# print(styler.to_html(escape=False))
-# 
+# Emit LaTeX; center the table
+latex = df.to_latex(
+    index=False,
+    escape=False,
+    column_format="lrrrr",  # 1 left + 4 numeric
+    caption="Per-class precision, recall, F1 and support on the test set.",
+    label="tbl:per-class"
+)
+print(latex.replace(r"\begin{table}", r"\begin{table}[ht]\centering"))
 
 ```
 
@@ -1806,75 +1678,41 @@ except NameError:
 ```
 
 ```{python}
-#| label: tbl:tau-vs-flat-html
+#| label: tbl:tau-vs-flat
 #| results: asis
 #| echo: false
-
 import pandas as pd
-import numpy as np
 
-try:
-    _ = comp  # ensure comp exists
-except NameError:
-    print('<div class="alert alert-warning" role="alert">Note: <code>comp</code> is not defined (model_full/dl_te/taus may be missing). Run the prediction cell first.</div>')
-else:
-    pretty = comp.rename(columns={"acc": "Accuracy", "macroF1": "Macro-F1"}).copy()
-    # numeric copies for comparisons
-    _num = pretty[["Accuracy","Macro-F1","MAE","QWK"]].copy()
-    _num["Accuracy"] = comp["acc"].astype(float)
-    _num["Macro-F1"] = comp["macroF1"].astype(float)
-    _num["MAE"]      = comp["MAE"].astype(float)
-    _num["QWK"]      = comp["QWK"].astype(float)
+# Pretty column names + rounding
+pretty = (
+    comp.rename(columns={"acc": "Accuracy", "macroF1": "Macro-F1"}).copy()
+)
+pretty["Accuracy"] = comp["acc"].map("{:.3f}".format)
+pretty["Macro-F1"] = comp["macroF1"].map("{:.3f}".format)
+pretty["MAE"]      = comp["MAE"].map("{:.3f}".format)
+pretty["QWK"]      = comp["QWK"].map("{:.3f}".format)
 
-    # string formatting for display
-    pretty["Accuracy"] = _num["Accuracy"].map("{:.3f}".format)
-    pretty["Macro-F1"] = _num["Macro-F1"].map("{:.3f}".format)
-    pretty["MAE"]      = _num["MAE"].map("{:.3f}".format)
-    pretty["QWK"]      = _num["QWK"].map("{:.3f}".format)
+latex = pretty.to_latex(
+    index=False,
+    escape=False,
+    column_format="lrrrr",
+    caption="Performance comparison between tuned $\\tau$ cutoffs and a flat 0.5 cutoff.",
+    label="tab:tau-vs-flat",
+    bold_rows=False
+)
 
-    # build styler
-    styler = (
-        pretty.style
-          .hide(axis="index")  # if this errors on older pandas, use .hide_index()
-          .set_caption("Performance comparison between tuned $\\tau$ cutoffs and a flat 0.5 cutoff.")
-          .set_table_attributes('class="table table-sm table-striped"')
-          .set_properties(subset=["Cutoffs"], **{"text-align":"left", "white-space":"nowrap"})
-          .set_table_styles([
-              {"selector":"th", "props":[("text-align","right")]},
-              {"selector":"td", "props":[("text-align","right")]},
-              {"selector":"caption", "props":[("caption-side","top"), ("font-weight","600")]}
-          ])
-    )
-
-    # optional: bold the best values (higher is better except MAE)
-    best_vals = {
-        "Accuracy": float(_num["Accuracy"].max()),
-        "Macro-F1": float(_num["Macro-F1"].max()),
-        "QWK":      float(_num["QWK"].max()),
-        "MAE":      float(_num["MAE"].min()),
-    }
-
-    def _hi_best(col, higher_is_better=True):
-        arr = _num[col].to_numpy(float)
-        target = arr.max() if higher_is_better else arr.min()
-        return ['font-weight:700' if v == target else '' for v in arr]
-
-    styler = styler.apply(lambda s: _hi_best("Accuracy", True), subset=["Accuracy"])
-    styler = styler.apply(lambda s: _hi_best("Macro-F1", True), subset=["Macro-F1"])
-    styler = styler.apply(lambda s: _hi_best("QWK", True), subset=["QWK"])
-    styler = styler.apply(lambda s: _hi_best("MAE", False), subset=["MAE"])
-
-    print(styler.to_html(escape=False))
-
+# center the table float
+latex = latex.replace(r"\begin{table}", r"\begin{table}[ht]\centering")
+print(latex)
 
 
 ```
 
 We re-evaluated the test set twice: once using the tuned monotone thresholds $\tau = [0.52, 0.50, 0.50, 0.48]$\
-and once using flat $0.5$ cut-offs for all CORN logits. The two runs produced identical results:\
+and once using flat $0.5$ cut-offs for all CORN logits. The two runs produced **identical** results:\
 Accuracy $= 0.648$, Macro-F1 $= 0.295$, MAE $= 0.433$, QWK $= 0.390$.
 
-This tells us that, on this test window, threshold calibration did not change any predicted labels.\
+This tells us that, on this test window, threshold calibration **did not change any predicted labels**.\
 That is consistent with two facts: (i) the tuned $\tau$ are very close to $0.5$, and (ii) most cumulative probabilities were far from the decision boundaries, so nudging thresholds within $0.48$-$0.52$ doesn't flip classes.
 
 This implies the model's test performance is driven by the sequence model and learned representations, rather than by the post-hoc thresholds. We keep the tuned $\tau$ for completeness and because they can help when class balance shifts, but we do **not** claim a test-set gain from calibration here. If thresholding becomes more influential (e.g., under stronger distribution shift), broader grids, direct QWK optimisation, or area-specific $\tau$ could be explored.
@@ -1940,15 +1778,15 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 
 The held-out results paint a clear picture. Hazards in this period are highly persistent and skewed toward the lower levels, and the naive persistence rule ("predict today as yesterday within area") performs very strongly on all summary metrics. Our tuned LSTM-CORN improves markedly over the two majority baselines, but it does not beat persistence on this particular test window.
 
-### Metrics and diagnostics
+### Metrics & Diagnostics
 
 Accuracy and MAE are reasonable for the neural model, but the QWK and macro-F1 show performance drops higher up the scale. This is consistent with the near-diagonal confusion matrix that has a downward bias (Level 1 is often pushed to 0; Levels 2-3 are frequently mapped to 1) while extreme over-calls are rare. The error histogram shows most misses are within one category (consistent with MAE $\approx 0.43$): useful for avoiding false alarms, but conservative relative to true highs. Finally, threshold calibration had almost no effect (tuned $\tau \approx [0.52, 0.50, 0.50, 0.48]$ and gave identical results to 0.5), which implies the limiting factor is representation/sequence learning, not the label cut-offs.
 
-### Factors underpinning Persistence performance
+### Why persistence wins here
 
 Two data realities favour the $y[t-1]$ rule:\
-(i) strong day-to-day autocorrelation in FAH;\
-(ii) imbalance and shift: the test window contains no "High" days and is dominated by Levels 0-1. In that regime, copying yesterday is genuinely hard to beat. The LSTM-CORN learns the ordinal structure and avoids wild swings, but with few upper-level examples and a short 14-day context, it struggles to escalate to 2-3 when the series does move. Persistence is not affected by the data imbalance like the LSTM, and is in fact aided by it (response is more uniform for test set).
+(i) **strong day-to-day autocorrelation** in FAH;\
+(ii) **imbalance and shift:** the test window contains no "High" days and is dominated by Levels 0-1. In that regime, copying yesterday is genuinely hard to beat. The LSTM-CORN learns the ordinal structure and avoids wild swings, but with few upper-level examples and a short 10-day context, it struggles to escalate to 2-3 when the series does move.
 
 ### Operational interpretation
 
@@ -1958,7 +1796,7 @@ If the near-term goal is to minimise false alarms, the current calibration is ac
 
 Conclusions are conditioned on this split: the test window lacks class 4 entirely and has very few class 3 days, so per-class scores at the top end are unstable. The dataset is modest for sequence models, labels may contain operational noise, and we restricted the model to observed histories (no external forecasts), which caps lead-time sensitivity. We mitigated leakage with forward-chaining folds and an embargo, but results will vary with split point and winter severity.
 
-### Possible future improvements
+### Possible Future Improvements
 
 Short-to-medium steps that fit the current pipeline:
 
@@ -1980,8 +1818,6 @@ From an operational perspective, the model is conservative and unlikely to produ
 
 Additional "High" days and further winters will help stabilise estimates at the upper levels. Overall, the method is interpretable and extensible. With targeted refinements, it has the potential to provide earlier and more reliable indicators of increasing avalanche hazard while maintaining a low false alarm rate.
 
-\newpage
-
 ## Statement on the use of AI (LLMs)
 
 ChatGPT (GPT-5 Thinking, GPT-4) was used as a supporting tool for planning, explanation, code syntax and polishing, and presentation. All final decisions, algorithmic design, checks, and writing are our own.
@@ -1994,16 +1830,16 @@ At the start, we shared the assignment brief and asked for a sensible three-way 
 
 #### 2) Code
 
--   **Data prep (R):** LLMs were used to support the design of the data cleaning pipeline, including handling missing values, detecting outliers, and ensuring correct variable types. They also assisted with R syntax and efficient use of packages such as dplyr and tidymodels. Prompts were kept concise and outputs validated step by step to ensure reliability.\
+-   **Data prep (R):**
 -   **Modelling (PyTorch):** LLMs were used to brainstorm ideas around the architecture of the model and assess the feasibility and efficacy of different approaches. It was also used to get Python syntax and data structures correct, as we are not fluent in that language or the Pytorch library. Steps were followed to ensure best practice in the use of LLMs, such as conserving tokens were ever possible, through concise and specific prompts, and requested limited output unless otherwise prompted. Would the end of the context length was reached, we generated summaries of our chats and put them at the start of the following chat.
 
-#### 3) Code polishing & integration
+### 3) Code polishing & integration
 
 We used AI to make code presentable and navigable inside the report so a reader can follow the narrative and the code together:
 
--   Refactored and streamlined/condensed code blocks (docstrings, clearer names, comments) without changing logic.\
--   Added Quarto-friendly chunks (labels, captions, seeds) so outputs render reproducibly in PDF, this was especially utilised for Python chunks.\
--   Wrote small utilities for CORN threshold tuning, evaluation, and plotting (confusion-matrix heatmap, metric tables), and debugged minor issues.\
+-   Refactored and streamlined/condensed code blocks (docstrings, clearer names, comments) without changing logic.
+-   Added Quarto-friendly chunks (labels, captions, seeds) so outputs render reproducibly in PDF, this was especially utilised for Python chunks.
+-   Wrote small utilities for CORN threshold tuning, evaluation, and plotting (confusion-matrix heatmap, metric tables), and debugged minor issues.
 -   Double-checked that the time split and folds prevented leakage, and that train/test separation was respected in every data path.
 
 Any AI-suggested code was run directly by us, and retained only if it was correct, readable, and consistent with our pipeline.
@@ -2012,12 +1848,12 @@ Any AI-suggested code was run directly by us, and retained only if it was correc
 
 We used AI as an editor and explainer, not as an author. It helped with coverage checks, clarity, and presentation. We kept control of the structure, final wording, and all technical claims.
 
--   **Coverage audit of Methods vs code:** We asked AI to cross-check that everything happening in the code is actually described in the text (e.g., sequence construction, forward-chaining folds with an embargo, CORN targets and loss, threshold tuning, baselines). It flagged a few gaps and we filled them. Anything inaccurate was discarded.\
--   **Plain-language tightening:** It suggested alternative phrasings for the LSTM/CORN/QWK explanations and helped trim repetition so sections read cleanly without losing technical meaning.\
+-   **Coverage audit of Methods vs code:** We asked AI to cross-check that everything happening in the code is actually described in the text (e.g., sequence construction, forward-chaining folds with an embargo, CORN targets and loss, threshold tuning, baselines). It flagged a few gaps and we filled them. Anything inaccurate was discarded.
+-   **Plain-language tightening:** It suggested alternative phrasings for the LSTM/CORN/QWK explanations and helped trim repetition so sections read cleanly without losing technical meaning.
 -   **Flow and structure:** It helped reorder sentences and add short signposts so paragraphs read as a narrative rather than a list of steps. However, overall narrative flow in the report is above the current abilities of AI (or at least for it to be done well and efficiently), so this was done independently.
--   **Captions and presentation:** It drafted first-pass figure/table captions, and we then aligned labels, units, and legends (e.g., rows=true/cols=pred in the confusion matrix, and helped provide metric definitions for us to include under the comparison table).\
--   **Consistency sweep:** We used it to spot inconsistencies in symbols and names (e.g., `FAH_ord`, $K$, $\tau$), units ($^\circ C$, cm, m/s), and split terminology ("train/test", "validation fold"), and then standardised them across the report.\
--   **Word-count management:** It helped us condense our abstract, introduction, and conclusion into more concise versions. We only kept edits that preserved our meaning and emphasis.\
+-   **Captions and presentation:** It drafted first-pass figure/table captions, and we then aligned labels, units, and legends (e.g., rows=true/cols=pred in the confusion matrix, and helped provide metric definitions for us to include under the comparison table).
+-   **Consistency sweep:** We used it to spot inconsistencies in symbols and names (e.g., `FAH_ord`, $K$, $\tau$), units ($^\circ C$, cm, m/s), and split terminology ("train/test", "validation fold"), and then standardised them across the report.
+-   **Word-count management:** It helped us condense our abstract, introduction, and conclusion into more concise versions. We only kept edits that preserved our meaning and emphasis.
 -   **Micro-explanations for readers:** Where code terms might block understanding (e.g., "oversampling", "class-balanced loss"), it helped draft one-line, non-jargony explanations that we then rewrote in our own words and integrated within our written report.
 
 As a way of keeping authorship and accuracy, we wrote the first drafts ourselves. AI suggestions were used as options, not final text. We rewrote text in our voice, verified technical statements against the code and outputs, and removed anything we did not understand. All numbers, metrics, thresholds, and plots were produced and checked by us.
@@ -2030,43 +1866,41 @@ We executed every included code cell and verified shapes, date boundaries, split
 
 These examples reflect how we used AI (from our initial scoping and idea generation, through iterative prompt refinement, to final verification checks):
 
-1.  **Planning:** "Given this brief, propose a practical 3-way task split and a checklist of outputs/figures we’ll need. Keep it realistic for a short timeline."\
-2.  **Method design:** "In 3 to 4 sentences, justify forward-chaining validation with an embargo for next-day avalanche hazard. Operationally, not mathematically."\
+1.  **Planning:** "Given this brief, propose a practical 3-way task split and a checklist of outputs/figures we’ll need. Keep it realistic for a short timeline."
+2.  **Method design:** "In 3 to 4 sentences, justify forward-chaining validation with an embargo for next-day avalanche hazard. Operationally, not mathematically."
 3.  **Learning the ordinal head (CORN):** "I’m reading the Shi, Cao, and Raschka paper and not fully grasping it. Why use $K - 1$ logits for $P(y > k)$? How are targets built directly from labels, and how do monotone thresholds turn those probabilities into one class? Please explain in plain English with a tiny $K = 5$ example and common pitfalls so I can understand this theory better."
-4.  **Imbalance rationale:** "In a couple of sentences, explain why we oversample in batches and use class-balanced weights ($\beta = 0.999$) for CORN. Emphasise rare exceedances without inventing data."\
+4.  **Imbalance rationale:** "In a couple of sentences, explain why we oversample in batches and use class-balanced weights ($\beta = 0.999$) for CORN. Emphasise rare exceedances without inventing data."
 5.  **Results narrative:** "Turn this metrics table (Accuracy, Macro-F1, MAE, QWK) into a brief, neutral comparison vs baselines. Additionally, explain what each metric means in one line so that I can try include a brief definitions when I introduce them"
-6.  **Figure polish (Quarto/PDF):** "Give a captioned confusion-matrix heatmap (rows=true, cols=pred) with a readable palette and percent labels. Make it knitr/Quarto-ready."\
-7.  **Quarto snippets:** "Produce labelled, captioned chunks for a confusion-matrix figure and a formatted metrics table suitable for PDF export."\
+6.  **Figure polish (Quarto/PDF):** "Give a captioned confusion-matrix heatmap (rows=true, cols=pred) with a readable palette and percent labels. Make it knitr/Quarto-ready."
+7.  **Quarto snippets:** "Produce labelled, captioned chunks for a confusion-matrix figure and a formatted metrics table suitable for PDF export."
 8.  **Abstract tightening:** "Cut this abstract to around 150 words. Keep aims (LSTM+CORN), time-aware validation, key metrics, and one-line takeaway."
 
 In each case, we reviewed/edited the draft and ran the code to confirm it worked with our data.
 
 ### Limits of the AI's role
 
--   **No autonomous analysis:** AI did not choose the final methodology, set hyperparameters, or produce final results. Those came from our group’s design, runs, and checks.\
--   **No blind copying:** We avoided pasting large blocks of AI generated text or code. Anything kept was edited and verified by us.\
--   **Potential inaccuracies:** LLMs can be wrong or overconfident. We treated explanations as suggestions, then validated against code and papers.\
--   **No access to private data or execution:** AI did not run our experiments or access hidden datasets. We executed everything locally and controlled random seeds/caches.\
+-   **No autonomous analysis:** AI did not choose the final methodology, set hyperparameters, or produce final results. Those came from our group’s design, runs, and checks.
+-   **No blind copying:** We avoided pasting large blocks of AI generated text or code. Anything kept was edited and verified by us.
+-   **Potential inaccuracies:** LLMs can be wrong or overconfident. We treated explanations as suggestions, then validated against code and papers.
+-   **No access to private data or execution:** AI did not run our experiments or access hidden datasets. We executed everything locally and controlled random seeds/caches.
 -   **Authorship and accountability:** All interpretation, synthesis, and conclusions are ours. The AI’s role was assistive, not determinative.
 
 ## Benefits
 
 Using an LLM mainly helped with structure, clarity, and polish while we kept control of the ideas, code, and results.
 
--   **Editorial shaping:** It can take a rough draft and provide insights into how to make it more concise and appropriate for a scientific report, by suggesting tightening sentences. This allows us to still keep our tone and intent intact.\
--   **Clarity through compression:** It reduces repetition and surfaces the main argument, which helped us get to the core of what we were trying to say (especially in terms of structuring a Methods Section and when trying to integrate a short literature review inside the Introduction).\
--   **Decomposing chaotic sections:** When a section felt messy, offered points on how to reorganised it into digestible pieces (clear paragraphs, headings, short lists) so readers can follow the logic.\
--   **Audience-fit translation:** It can help turn code-heavy or jargony passages into plain-English explanations that are self-contained, so the report stands on its own without the reader opening the code.\
--   **Code ideation & efficiency:** Once we were clear on intent, it proposed cleaner patterns (small utilities, vectorised operations, reusable plotting functions). We only kept changes that we verified improved readability or runtime without altering results.\
--   **Formatting and presentation:** It sped up figure/table styling for PDF (captions, labels, palettes, legends) and Quarto chunk hygiene (seeds, paths, cache). This helps save us time we could spend on analysis.\
--   **Consistency checks:** It was useful for quick passes on naming, units, date boundaries, and split logic, reducing accidental inconsistencies across sections.\
--   **Focused learning support:** For more complex sections (e.g., CORN thresholds, QWK) it provided explanations and examples for us to better understand the theory.\
--   **Rapid Idea Generation:** It generated checklists, micro-templates, and alternative phrasings on demand, which helped us move faster without skipping the verification steps.
--   **Checkpoints:** It was useful for quick checks on validation design (forward-chaining + embargo), metric definitions, and common pitfalls. This saved us time while we kept control of decisions.
+-   **Editorial shaping:** It can take a rough draft and provide insights into how to make it more concise and appropriate for a scientific report, by suggesting tightening sentences. This allows us to still keep our tone and intent intact.
+-   **Clarity through compression:** It reduces repetition and surfaces the main argument, which helped us get to the core of what we were trying to say (especially in terms of structuring a Methods Section and when trying to integrate a short literature review inside the Introduction).
+-   **Decomposing chaotic sections:** When a section felt messy, offered points on how to reorganised it into digestible pieces (clear paragraphs, headings, short lists) so readers can follow the logic.
+-   **Audience-fit translation:** It can help turn code-heavy or jargony passages into plain-English explanations that are self-contained, so the report stands on its own without the reader opening the code.
+-   **Code ideation & efficiency:** Once we were clear on intent, it proposed cleaner patterns (small utilities, vectorised operations, reusable plotting functions). We only kept changes that we verified improved readability or runtime without altering results.
+-   **Formatting and presentation:** It sped up figure/table styling for PDF (captions, labels, palettes, legends) and Quarto chunk hygiene (seeds, paths, cache). This helps save us time we could spend on analysis.
+-   **Consistency checks:** It was useful for quick passes on naming, units, date boundaries, and split logic, reducing accidental inconsistencies across sections.
+-   **Focused learning support:** For more complex sections (e.g., CORN thresholds, QWK) it provided explanations and examples for us to better understand the theory.
+-   **Cognitive offloading:** It generated checklists, micro-templates, and alternative phrasings on demand, which helped us move faster without skipping the verification steps.
+-   **Sanity checks:** It was useful for quick checks on validation design (forward-chaining + embargo), metric definitions, and common pitfalls. This saved us time while we kept control of decisions.
 
 Overall, the LLM worked like a sharp editor and sounding board: it helped us restructure, clarify, and polish, while we did the design, execution, and final judgement calls.
-
-\newpage
 
 ## References
 
@@ -2081,8 +1915,6 @@ Overall, the LLM worked like a sharp editor and sounding board: it helped us res
 -   Shi, X., Cao, W. and Raschka, S. (2021) 'Deep Neural Networks for Rank-Consistent Ordinal Regression Based on Conditional Probabilities', *arXiv preprint* arXiv:2111.08851. Available at: <https://arxiv.org/abs/2111.08851>.
 
 -   Lim, B. and Zohren, S. (2021) 'Time-series forecasting with deep learning: a survey', *Philosophical Transactions of the Royal Society A: Mathematical, Physical and Engineering Sciences*, 379(2194), 20200209. <https://doi.org/10.1098/rsta.2020.0209>.
-
-\newpage
 
 ## Appendix
 
@@ -2291,6 +2123,39 @@ print(p3a); print(p3b); print(p3c)
 ```
 
 ### Model / Results Figures
+
+```{python}
+#| fig-cap: "Confusion matrix on the test set; numbers show counts (top) and row-normalised rates (bottom)"
+#| results: "hide"
+# B1: Confusion matrix heatmap
+## confusion matrix (test)
+# yes
+import json, numpy as np, matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
+
+npz = np.load("artifacts/test_preds_ytrue.npz")
+y_true, y_pred = npz["y_true"], npz["y_pred"]
+labels = [0,1,2,3,4]
+
+cm = confusion_matrix(y_true, y_pred, labels=labels)
+cmn = cm / cm.sum(axis=1, keepdims=True)
+
+fig, ax = plt.subplots(figsize=(6,5), dpi=150)
+im = ax.imshow(cmn, interpolation="nearest")
+ax.figure.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+ax.set(xticks=np.arange(len(labels)), yticks=np.arange(len(labels)),
+       xticklabels=labels, yticklabels=labels,
+       xlabel="Predicted FAH", ylabel="True FAH",
+       title="Confusion matrix (row-normalised)")
+for i in range(cmn.shape[0]):
+    for j in range(cmn.shape[1]):
+        ax.text(j, i, f"{cm[i,j]}\n({cmn[i,j]:.2f})",
+                ha="center", va="center", fontsize=8)
+fig.tight_layout()
+#fig.savefig("figs/B1_confusion_matrix.png")
+plt.show()
+
+```
 
 ```{python}
 #| fig-cap: "Per-class precision, recall, and F1 on the test set."

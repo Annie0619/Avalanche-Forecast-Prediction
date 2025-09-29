@@ -12,7 +12,7 @@ At the start, we shared the assignment brief and asked for a sensible three-way 
 
 2) Code
 
-Data prep (R):
+Data prep (R): LLMs were used to support the design of the data cleaning pipeline, including handling missing values, detecting outliers, and ensuring correct variable types. They also assisted with R syntax and efficient use of packages such as dplyr and tidymodels. Prompts were kept concise and outputs validated step by step to ensure reliability.
 
 Modelling (PyTorch): LLMs were used to brainstorm ideas around the architecture of the model and assess the feasibility and efficacy of different approaches. It was also used to get Python syntax and data structures correct, as we are not fluent in that language or the Pytorch library. Steps were followed to ensure best practice in the use of LLMs, such as conserving tokens were ever possible, through concise and specific prompts, and requested limited output unless otherwise prompted. Would the end of the context length was reached, we generated summaries of our chats and put them at the start of the following chat.
 

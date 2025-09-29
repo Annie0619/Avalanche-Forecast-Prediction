@@ -34,7 +34,7 @@ execute:
 {\LARGE Assignment 1 - Report \par}
 \vspace{2cm}
 {\Large Christopher Allpass-Jackson (ALLCHR011) \par}
-{\Large Andomei Smit \par}
+{\Large Andomei Smit (SMTAND051) \par}
 {\Large Daniela Stevenson (STVDAN011) \par}
 \vfill
 {\large \today \par}
@@ -94,7 +94,7 @@ py_config()  # show the bound Python
 
 ### Data
 
-We analysed a 2009-2025 archive of daily avalanche forecasts from the Scottish Avalanche Information Service across six forecasting regions. The prediction target is the forecast avalanche hazard (FAH) for the following day, encoded as an *ordered* categorical variable with levels:
+We analysed a 2009-2025 archive of daily avalanche forecasts from the Scottish Avalanche Information Service across six forecasting regions. The prediction target is the forecast avalanche hazard (FAH) for the following day, encoded as an ordered categorical variable with levels:
 
 *Low \< Moderate \< Considerable - \< Considerable + \< High*
 
@@ -103,7 +103,9 @@ Predictors comprise:\
 2. **Contemporaneous meteorology** near the forecast location - summit air temperature, summit wind speed and direction, lower-level winds, cloud, and insolation.\
 3. **Snowpack observations** derived from field tests - snow temperature, maximum temperature and hardness gradients, foot and ski penetration indices, crystal type, wetness, and a derived stability index.
 
-To avoid information leakage for the FAH task, the observed hazard on the following day (OAH) was removed from the analysis dataset.
+The observed hazard (OAH) was removed from the dataset to prevent leakage.
+
+\newpage
 
 ### Methods: Data Preparation, Cleaning, and Pre-processing
 
@@ -128,9 +130,9 @@ aval <- read.csv("scotland_avalanche_forecasts_2009_2025.csv")
 aval <- aval %>% select(-OAH)
 ```
 
-####  Type standardisation and initial feature engineering
+#### Type standardisation and initial feature engineering
 
-We converted timestamps to Date and derived year, month, day-of-year (`doy`), and meteorological season (DJF/MAM/JJA/SON). Identifiers and descriptors were given sensible types (e.g., `Area` as a factor; OS grid and location as character). The hazard response was stored as an ordered factor (`FAH_ord`) using the level order defined above. These steps preserve the outcome's ordinal structure for modelling and evaluation and add explicit seasonality features for downstream encoding.
+We parsed timestamps into date components (year, month, DOY, season), converted IDs to appropriate types (e.g., `Area` as a factor), and stored FAH as an ordered factor (`FAH_ord`) to preserve ordinal structure for modelling and evaluation.
 
 ```{r}
 # Types & Engineered Features 
@@ -169,7 +171,7 @@ aval <- aval %>%
 
 #### Spatial consistency checks
 
-We examined whether OS grids denote unique points. Longitude and latitude vary within OS grids, indicating that an OS grid represents an area rather than a single coordinate. Altitude is not constant within OS grids. Accordingly, altitude should not be imputed from the OS grid identifier alone: since each grid covers heterogeneous terrain, we instead query elevation using the precise latitude-longitude coordinates.
+OS grids represents areas rather than single points, so longitude, latitude, and altitude vary within them. Therefore, we did not impute altitude from the grid ID: since each grid covers heterogeneous terrain, we instead queried elevation using precise coordinates.
 
 ```{r}
 # Spacial Checks
@@ -255,11 +257,9 @@ dup_summary <- tibble(
 
 #### Missingness audit and design of indicators
 
-We first measured missingness per variable and inspected its pattern. Where the absence itself could be informative, we created explicit 0/1 "was-missing" flags (before any outlier recoding). These indicators were made for: AV.cat, Ski.pen, Crystals, Wetness, Snow.Index, and the summit weather fields (Summit.Wind.Dir, Summit.Wind.Speed, Summit.Air.Temp). Doing this early ensures the indicators reflect the data as collected and aren't confounded by later plausibility filters.
+We measured missingness per variable and, where the absence was informative, created 0/1 'was-missing' flags before any outlier recoding. These were made for: AV.cat, Ski.pen, Crystals, Wetness, Snow.Index, and summit weather fields (Wind Dir/Speed, Air Temp). Creating these early preserves the original data structure. Fields like Max.Temp.Grad, Max.Hardness.Grad are blank when no snow pit is done. So, we imputed those numeric blanks downstream rather than adding indicators.
 
-Some fields (e.g., Max.Temp.Grad, Max.Hardness.Grad) are only measured when a snow pit is carried out. When no pit is done those fields are blank by design, so we did not add extra "missing" indicators; instead, we impute those numeric blanks downstream for modelling.
-
-**Snow.Index check:** Because many values are exactly zero, we tested whether Snow.Index == 0 was being used as a stand-in for "no test." It wasn't: rows with Snow.Index = 0 didn't show elevated missingness in pit variables, so zeros appear to be legitimate measurements (e.g., stable conditions). We therefore kept zeros as valid values and treated only NA as missing.
+**Snow.Index check:** Many values are exactly zero. We tested whether zeros signified 'no test' and found they did not, i.e., rows with zeros showed no elevated missingness in pit variables. We therefore kept zeros as valid measurements and treated only NAs as missing.
 
 ```{r}
 # Missingness audit + indicators:
@@ -293,7 +293,7 @@ aval <- aval %>%
 
 #### Physically defensible plausibility filters
 
-We applied conservative real-world plausibility checks and recoded any violations to `NA` so they can be handled by imputation rather than ad-hoc edits. The limits reflect basic constraints (e.g., angles in $0{-}360^\circ$, non-negative depths) and local context.
+We applied conservative plausibility checks and recoded violations to `NA` for later imputation. The limits reflect basic physical and local constraints (e.g., angles in $0{-}360^\circ$, non-negative depths).
 
 -   Directional variables (Aspect, Wind.Dir, Summit.Wind.Dir): values outside $[0^\circ, 360^\circ]$ set to `NA`.\
 -   Snow temperature ($^\circ$C): values $> 5$ set to NA (snow cannot persist above $\sim 0^\circ$C; a small buffer accommodates sensor and entry noise).\
@@ -303,8 +303,6 @@ We applied conservative real-world plausibility checks and recoded any violation
 -   Total snow depth (cm): values $<0$ or $>500$ set to NA (regional plausibility).\
 -   Maximum temperature gradient ($^\circ$C/10 cm): values $> 10$ set to NA.\
 -   Altitude (m): values $<0$ or $>1400$ set to NA (Scotland's highest peak $\approx 1345$ m).
-
-Marking impossible readings as `NA` prevents them from skewing summaries or model fits and lets the downstream multivariate imputer estimate plausible replacements from the remaining data.
 
 ```{r}
 # Plausibility filters + hidden diagnostics:
@@ -345,9 +343,9 @@ rules_tbl <- tribble(
 
 ```
 
-####  Altitude repair via coordinate-based elevation lookup
+#### Altitude repair via coordinate-based elevation lookup
 
-For the small number of missing altitudes, we queried an open elevation service at rounded (`latitude`, `longitude`) and filled `Alt` where a value was returned. One queried coordinate yielded $0$ m (a sea-loch), indicating a geolocation error. For that single case, we replaced the coordinate with the area mean (Creag Meagaidh) and re-queried. To ensure deterministic compilation, elevation results are cached locally; subsequent runs read from cache if the service is unavailable.
+For missing altitudes, we queried an open elevation service at rounded coordinates and filled `Alt` where values were returned. One query returned $0$ m (a sea-loch), indicating a geolocation error. We replaced it with the area mean (Creag Meagaidh) and re-queried. Results are cached locally for deterministic compilation and used if the service is unavailable.
 
 ```{r}
 ### Open-Elevation lookup with simple CSV cache for determinism
@@ -418,7 +416,7 @@ if (nrow(to_fill) > 0) {
 
 #### Circular encodings for directional variables
 
-As angles wrap around at $360^\circ$, treating them as ordinary numbers creates an artificial jump between $359^\circ$ and $0^\circ$. We therefore replaced each directional variable (`Wind.Dir`, `Summit.Wind.Dir`, `Aspect`) with two new variables that locate the direction on the unit circle: the sine and cosine of the angle (in radians). This keeps $0^\circ$ and $360^\circ$ close in feature space, and removes the wrap-around discontinuity, which helps and yields smoother relationships for the models. Missing angles remained missing in both components and were imputed later.
+As angles wrap at $360^\circ$, treating them as numeric creates an artificial jump between $359^\circ$ and $0^\circ$. We replaced each directional variable (`Wind.Dir`, `Summit.Wind.Dir`, `Aspect`) with the sine and cosine of the angle (radians). This keeps $0^\circ$ and $360^\circ$ close in feature space, and removes the wrap-around discontinuity. Missing angles remained missing in both components and were imputed later.
 
 ```{r}
 ### Encode angles as circular after cleaning
@@ -436,7 +434,7 @@ aval <- aval %>%
 
 #### Time-aware splitting and leakage control
 
-The data was split chronologically into $80\%$ training and $20\%$ test by calendar time (no overlap).Any rows missing a `Date` or the target (`FAH_ord`) were dropped before the split. We checked class balance in each split; the High level is very rare and does not appear in the test window (so performance on that class cannot be evaluated). All preprocessing steps were fit on the training set only (e.g., imputation, scaling, encoding) and then applied unchanged to the test set. This setup avoids information leakage.
+We split the data chronologically into $80\%$ training and $20\%$ test (non-overlapping), dropping rows with missing `Date` or target (`FAH_ord`) before the split. We checked class balance in each split. The High level is very rare and absent in the test window, so performance on it cannot be evaluated. All preprocessing (imputation, scaling, encoding) was fit on the training set and applied unchanged to the test set to avoid leakage.
 
 ```{r}
 ### Chronological split 80/20; drop missing Date/FAH before split
@@ -470,11 +468,9 @@ A single, train-fitted `recipes` pipeline was implemented with the following sta
 3.  **Imputation:** Categorical variables were imputed by mode; numerical variables by bagged-tree imputation (bootstrap ensembles estimated on the training data), which captures non-linearities and interactions in mixed meteorological and snowpack features more effectively than mean or KNN imputation.\
 4.  **Encoding:** One-hot encoding of categorical predictors (including `Area`).\
 5.  **Variance filtering:** Removal of zero-variance and near-zero-variance predictors.\
-6.  **Scaling:** Standardisation of numerical predictors, excluding the 0/1 informative-missing indicators (and area dummies) to preserve their interpretability.\
+6.  **Scaling:** Standardisation of numerical predictors, excluding the 0/1 informative-missing indicators (and area dummies).\
 7.  **Seasonality:** Replacement of discrete season dummies with smooth cyclical features $doy\_sin$ and $doy\_cos$ (constructed from day-of-year with leap years handled); season binaries were removed to reduce collinearity.\
 8.  **Target mapping:** The ordered response was mapped once to integers $0{-}4$ to provide a single source of truth for neural-network models.
-
-The recipe was prepped on the training set (estimating imputation models, encoding maps, and scaling parameters) and then baked on both training and test splits to yield model-ready matrices (`x_train`, `x_test`). For downstream modelling and plotting, a `Date` column was retained; final matrices ($X\_{train}$, $X\_{test}$) include the integer-encoded target as the last column.
 
 ```{r}
 ### Build recipes pipeline (fit on TRAIN only, then bake to both splits)
@@ -550,7 +546,7 @@ write.csv(X_test,  "X_test.csv",  row.names = FALSE)
 
 #### Reproducibility, diagnostics, and assumptions
 
-We fixed random seeds and kept all data-prep and modelling steps in a single scripted pipeline so that results are reproducible across runs. After baking the recipe, there were no remaining missing values in either split. We re-checked the composite key (`Date`, `OSgrid`, `Area`) after duplicate handling, and we spot-checked distributions of imputed variables to make sure they looked reasonable (plots not shown for space). Elevation queries are cached locally, so reruns do not depend on the external service.
+We fixed random seeds and kept all data-prep and modelling steps in a single scripted pipeline. After baking the recipe, there were no remaining missing values in either split. We re-checked the composite key (`Date`, `OSgrid`, `Area`) after duplicate handling, and we spot-checked distributions of imputed variables to make sure they looked reasonable. Elevation queries are cached locally, so reruns do not depend on the external service.
 
 Our working assumptions were:\
 (i) the value ranges we used to flag implausible measurements reflect Scottish conditions;\
@@ -559,12 +555,13 @@ Our working assumptions were:\
 
 #### Limitations and sensitivity considerations
 
-The High hazard class is rare (and absent in our test window) so standard accuracy alone can be misleading. We therefore report macro-averaged scores and discuss calibration in the results, but performance on the very rarest conditions remains uncertain. The plausibility cut-offs (e.g., the threshold for snow temperature) are conservative choices, not unique truths; reasonable alternatives could be used, and results may shift slightly.\
-Finally, because we split by time, outcomes can vary with the split date (e.g., if conditions change from one season to the next). This is typical in operational forecasting; sensitivity checks (e.g., alternate split points or small variations in thresholds and look-back length) would be a natural extension.
+The High hazard class is rare (and absent in our test window) so standard accuracy alone can be misleading. We therefore report macro-averaged scores and discuss calibration in the results, but performance on the very rarest conditions remains uncertain. The plausibility cut-offs (e.g., the threshold for snow temperature) are conservative choices, not unique truths; reasonable alternatives could be used, and results may shift slightly.
+
+Finally, because we split by time, outcomes can vary with the split date (e.g., if conditions change from one season to the next). This is typical in operational forecasting, so sensitivity checks (e.g., alternate split points or small variations in thresholds and look-back length) would be a natural extension.
 
 ### Methods: Neural ordinal forecasting model
 
-The neural network implementation was done in python, using the popular PyTorch deep learning library. Given the temporal component of the data, a recurrent network architecture was used over a standard feed-forward setup, which is incapable of "remembering" anything about past observations. Specifically, a Long Short Term Memory (LSTM) design was employed, which are less susceptible to vanishing and exploding gradients.
+The neural network implementation was done in python, using PyTorch. Given the temporal component of the data, a recurrent network architecture was used over a standard feed-forward setup, which is incapable of "remembering" anything about past observations. Specifically, a Long Short Term Memory (LSTM) design was employed, which is less susceptible to vanishing and exploding gradients.
 
 ```{python}
 ## Imports & data ingest (from R exports)
@@ -603,9 +600,9 @@ target_col = "FAH_ord"
 
 #### Data interface and temporal windows
 
-The data were split into sequences for the recurrent architecture. The variables were divided into static and dynamic categories, with the static features uniform in the sequence. These features were longitude, latitude, altitude, incline, and area binaries, and the dynamic features were all remaining numeric variables, and the missingness indicators from the preprocessing stage. In adddition, a new feature of the previous day's hazard rating, FAH_prev, was created and included in the dynamic category.
+The data were split into sequences for the recurrent architecture. Static features (longitude, latitude, altitude, incline, area dummies) were held constant across sequences, while dynamic features comprised all remaining numeric variables and the missingness indicators. A new feature of the previous day's hazard rating, `FAH_prev`, was created and added to the dynamic set.
 
-Area-wise sliding windows with look-back $L = 10$ days and horizon $H = 0$ were constructed, with an embargo (Lim and Zohren, 2021; Eq. 2.1). The train/test boundary follows the R split ($80\%$ earliest dates for training; remaining $20\%$ for testing). Windows are built after concatenating and then filtering by the **target date** so that nothing from the test period influences training.
+Area-wise sliding windows with look-back $L = 10$ days and horizon $H = 0$ were built with an embargo (Lim and Zohren, 2021; Eq. 2.1). The train/test split matches the R setup ($80\%$ earliest dates for training, remaining $20\%$ for testing), and windows were constructed after concatenation and filtered by the target date to prevent test leakage.
 
 ```{python}
 ## Sequence Construction & Feature Partition
@@ -682,9 +679,9 @@ Xseq_te, Xsta_te, y_te = Xseq_all[is_test],  Xsta_all[is_test],  y_all[is_test]
 
 #### Architecture and loss (CORN-LSTM)
 
-The final hidden state of the LSTM after being trained is passed through a small MLP head. Instead of then using softmax over the class predictions and Cross-Entropy (CE) error, we used a technique called Cumlative Ordinal Regression for Neural Networks (CORN). The CORN layer follows the MLP head, and produces $K - 1$ logits that are then used to determine progress through a set of ordered binaries on whether a prediction is of a certain class, $\Pr(y > 0)$, $\Pr(y > 1)$, $\ldots$, $\Pr(y > K - 2)$. Because these events become harder as $k$ grows, their probabilities naturally decrease with $k$ (Cao, Mirjalili and Raschka, 2020). During training, We compute CORN targets from the true class and minimise Binary Cross-Entropy (BCE) on the $K - 1$ logits. At inference, we threshold the $K - 1$ probabilities, count how many exceed their thresholds, and that count is the predicted FAH level.
+The LSTM's final hidden state after being trained is passed through a small MLP head. Instead of using softmax over the class predictions and Cross-Entropy (CE) error, we used a technique called Cumulative Ordinal Regression for Neural Networks (CORN). The CORN layer follows the MLP head, and produces $K - 1$ logits that are then used to determine progress through a set of ordered binaries on whether a prediction is of a certain class, $\Pr(y > 0)$, $\Pr(y > 1)$, $\ldots$, $\Pr(y > K - 2)$. Because these events become harder as $k$ grows, their probabilities naturally decrease with $k$ (Cao, Mirjalili and Raschka, 2020).
 
-This approach is superior to CE error, which treats classes as nominal, and does not distinguish between degrees of misclassifcation.
+During training, We compute CORN targets from the true class and minimise Binary Cross-Entropy (BCE) on the $K - 1$ logits. At inference, we threshold the $K - 1$ probabilities, count how many exceed their thresholds, and that count is the predicted FAH level. This approach is superior to CE error, which treats classes as nominal, and does not distinguish between degrees of misclassification.
 
 ```{python}
 ## Ordinal machinery (CORN targets, loss, prediction)
@@ -748,9 +745,7 @@ def corn_pos_weight_cb(y_fold, K=5, beta=0.999, device=device):
 
 #### Class imbalance handling
 
-Two techniques were employed to counteract the imbalance between high and low hazard level predictions in the dataset: Batch oversampling and Class-balanced CORN loss**.** In the case of the former,Oversampling in the training loader (`WeightedRandomSampler`) to increase the frequency of rarer FAH levels during optimisation, so minority levels appear more often in batches.
-
-In the latter, we apply the class-balanced loss based on the effective number of samples, which weights each class by $(1 - \beta)/(1 - \beta^{n_c})$. For each threshold $k$, we compute a positive weight ($\beta = 0.999$) and apply it in the BCE term, so rare exceedance events $(y > k)$ contribute proportionally more without duplicating data (Cui et al., 2019). This has he effect of upweighting rare events, making them mater more in the BCE loss.
+We addressed class imbalance between high and low hazard level predictions using two techniques: (1) oversampling in the training loader (`WeightedRandomSampler`) to increase rare FAH frequencies during optimisation, and (2) Class-balanced CORN loss, which weights each class by its effective number of samples $(1 - \beta)/(1 - \beta^{n_c})$. For each threshold $k$, we compute a positive weight ($\beta = 0.999$) and apply it in the BCE term so rare exceedance events $(y > k)$ contribute proportionally more without duplicating data (Cui et al., 2019). This has the effect of upweighting rare events, making them mater more in the BCE loss.
 
 ```{python}
 ## Dataloaders, training loop, and validation routine (+ sampler)
@@ -840,9 +835,9 @@ def corn_pos_weight_cb(y_fold, K=5, beta=0.999, device=device):
     return torch.tensor(w, dtype=torch.float32, device=device)  # (K-1,)
 ```
 
-####  Validation protocol, hyperparameter search, and early stopping
+#### Validation protocol, hyperparameter search, and early stopping
 
-In order to conduct hyperparameter tuning for the chosen model architecture, an appropriate validation framework was implemented. In order to maximise data for training and testing, cross validation was employed. We created forward-chaining time folds ($K=5$) with anembargo of length \$ L \$ before each validation slice to avoid look-ahead leakage. For a fold k, the validation set is a contigous block of unique target dates, adn the training is all earlier sequences, except for the embargo before the validation block to prevent leakage. This means that the there is an expanding window as we move forward in time, so the training includes more history, and there is no random shuffling, which would be inappropriate in this context.
+In order to conduct hyperparameter tuning for the chosen model architecture, an appropriate validation framework was implemented. In order to maximise data for training and testing, cross validation was employed. We created forward-chaining time folds ($K=5$) with an embargo of length \$ L \$ before each validation slice to avoid look-ahead leakage. For a fold k, the validation set is a contiguous block of unique target dates, and the training is all earlier sequences, except for the embargo before the validation block to prevent leakage. This means that there is an expanding window as we move forward in time, so the training includes more history, and there is no random shuffling, which would be inappropriate in this context.
 
 We tuned hyperparameters with **Optuna** over:
 
@@ -923,7 +918,7 @@ folds = make_time_folds(tgt_dates_tr, K=5, gap_days=10)
 
 #### Threshold calibration (monotone $\tau$)
 
-After selection, the model was refit on all training windows and thresholds were calibrated on the most recent validation fold, then fixed for test, since the last validation fold should be more similar to the test distribution. These thresholds are used to turn the CORN outputs of $K - 1$ probabilities into labels. They were tuned on the latest validation fold using a simple grid over $0.3$-$0.7$, selecting the vector that maximises QWK. they are monotone non_increasing, $\tau_1 \ge \tau_2 \ge \cdots \ge \tau_{K-1}$ , because $\Pr(y > k)$ decreases with $k$; later thresholds should never be easier to exceed than earlier ones.
+After selection, the model was refit on all training windows and thresholds were calibrated on the most recent validation fold, then fixed for test, since the last validation fold should be more similar to the test distribution. These thresholds are used to turn the CORN outputs of $K - 1$ probabilities into labels. They were tuned on the latest validation fold using a simple grid over $0.3$-$0.7$, selecting the vector that maximises QWK. they are monotone non-increasing, $\tau_1 \ge \tau_2 \ge \cdots \ge \tau_{K-1}$ , because $\Pr(y > k)$ decreases with $k$; later thresholds should never be easier to exceed than earlier ones.
 
 The tuned vector used for test was:
 
@@ -1007,6 +1002,8 @@ We refit the model on all training windows, keeping a small, chronological $90/1
 
 ```{python}
 import random
+#| results: "hide"
+
 random.seed(2025)
 ## Final train on all training windows and hold-out test evaluation
 
@@ -1068,7 +1065,10 @@ np.savez_compressed("artifacts/test_preds_ytrue.npz",
 ```
 
 ```{python}
+
 random.seed(2025)
+#| results: "hide"
+
 ## Confusion matrix & per-class report (for RESULTS section later)
 from sklearn.metrics import confusion_matrix, classification_report
 import numpy as np
@@ -1179,6 +1179,8 @@ with open("artifacts/baseline_metrics.json", "w") as f:
 
 ```
 
+\newpage
+
 ## Results
 
 We evaluate the tuned LSTM-CORN on the held-out test window and compare it with three simple baselines.\
@@ -1186,6 +1188,7 @@ All settings were fixed before touching the test set. We report Accuracy, Macro-
 a confusion matrix and per-class summary show where errors occur.
 
 ```{python}
+#| fig-show: "hide"
 import json, pandas as pd
 
 with open("artifacts/test_metrics.json") as f:
@@ -1205,46 +1208,6 @@ rows += [
 tbl = pd.DataFrame(rows)[["Model","acc","macroF1","MAE","QWK"]]
 #tbl
 
-```
-
-```{python}
-#| label: tbl-metrics
-#| results: asis
-import pandas as pd
-
-# pretty column names + rounding
-pretty = (
-    tbl.rename(columns={"acc": "Accuracy", "macroF1": "Macro-F1"})
-       .assign(
-           Accuracy = tbl["acc"].map("{:.3f}".format),
-           **{"Macro-F1": tbl["macroF1"].map("{:.3f}".format)},
-           MAE = tbl["MAE"].map("{:.3f}".format),
-           QWK = tbl["QWK"].map("{:.3f}".format)
-       )
-)
-
-
-latex = pretty.to_latex(
-    index=False,
-    escape=False,              # keep LaTeX in "Model" (your $\tau$)
-    column_format="lrrrr",     # left + 4 right-aligned numeric cols
-    caption="Performance comparison between LSTM-CORN and baseline models.",
-    label="tab:metrics",
-    bold_rows=False
-)
-
-print(latex)
-
-
-```
-
-### Validation Set-Up
-
-We validated with forward-chaining time folds and a 10-day embargo between training and validation windows, ensuring the model never "sees" information from the future of the validation period. Hyperparameters maximised mean QWK across folds, and after selection, we recalibrated thresholds on the most recent fold (the one closest in time to the test window).
-
-```{python}
-# Renders a small schematic string so the choices are explicit in the report
-print("Validation = forward-chaining (K=5) with 10-day embargo; objective = mean QWK across folds.")
 ```
 
 ### Class Balance: Train vs Test
@@ -1396,9 +1359,40 @@ plot_class_dist(class_balance)
 
 ```
 
+\newpage
+
 ### Test Performance (Model vs Baselines)
 
 Below we compare the tuned LSTM-CORN model with three simple baselines. We evaluate performance using four metrics: **Accuracy**, **Macro-F1**, **Mean Absolute Error (MAE)**, and **Quadratic Weighted Kappa (QWK)**. Accuracy measures the proportion of exact predictions but can be misleading under class imbalance (e.g., always predicting the majority class). Macro-F1 computes precision and recall per class, takes their harmonic mean, and averages equally across classes. This handles imbalance better but ignores class ordering. MAE uses the ordinal scale directly, averaging absolute differences between true and predicted levels (e.g., a miss of $0 \to 1$ counts as 1, while $0 \to 4$ counts as 4), with a range from $0$ to $K - 1$. QWK is a chance-corrected agreement measure that penalises larger ordinal gaps using quadratic weights. It ranges from 1 (perfect) to 0 (chance) and can be less than 0 (worse than chance), making it well suited to ordinal targets and useful for validation.
+
+```{python}
+#| label: tbl-metrics
+#| results: asis
+import pandas as pd
+
+# pretty column names + rounding
+pretty = (
+    tbl.rename(columns={"acc": "Accuracy", "macroF1": "Macro-F1"})
+       .assign(
+           Accuracy = tbl["acc"].map("{:.3f}".format),
+           **{"Macro-F1": tbl["macroF1"].map("{:.3f}".format)},
+           MAE = tbl["MAE"].map("{:.3f}".format),
+           QWK = tbl["QWK"].map("{:.3f}".format)
+       )
+)
+
+
+latex = pretty.to_latex(
+    index=False,
+    escape=False,              # keep LaTeX in "Model" (your $\tau$)
+    column_format="lrrrr",     # left + 4 right-aligned numeric cols
+    caption="Performance comparison between LSTM-CORN and baseline models.",
+    label="tab:metrics",
+    bold_rows=False
+)
+
+print(latex)
+```
 
 ```{python}
 # Load metrics from artifacts (written by your training code)
@@ -1420,40 +1414,11 @@ results_tbl = pd.DataFrame(rows)[["Model","acc","macroF1","MAE","QWK"]]
 
 ```
 
-```{python}
-#| label: tbl:results
-#| results: asis
-#| echo: false
-# import pandas as pd
-# 
-# Pretty column names + 3dp rounding
-pretty = (
-    results_tbl.rename(columns={"acc": "Accuracy", "macroF1": "Macro-F1"}).copy()
-)
-pretty["Accuracy"] = results_tbl["acc"].map("{:.3f}".format)
-pretty["Macro-F1"] = results_tbl["macroF1"].map("{:.3f}".format)
-pretty["MAE"]      = results_tbl["MAE"].map("{:.3f}".format)
-pretty["QWK"]      = results_tbl["QWK"].map("{:.3f}".format)
- 
-latex = pretty.to_latex(
-    index=False,
-    escape=False,                     # keep LaTeX in Model (your $\tau$)
-    column_format="lrrrr",            # left + 4 right-aligned numeric cols
-    caption="Test-set performance: model vs baselines.",
-    label="tab:results",
-    bold_rows=False
-)
-
-latex = latex.replace(r"\\begin{table}", r"\\begin{table}[ht]\centering")
-print(latex)
-
-```
-
 On the held-out test window, the persistence rule (predict today as yesterday within area) is the strongest comparator: QWK $\approx 0.659$, Accuracy $\approx 0.719$, MAE $\approx 0.329$, Macro-F1 $\approx 0.456$ The tuned LSTM-CORN improves markedly over the two majority heuristics but does not reach persistence, with QWK $\approx 0.390$, Accuracy $\approx 0.648$, MAE $\approx 0.433$, and Macro-F1 $\approx 0.295$.\
 
 The majority baselines are near chance in ordinal agreement (global QWK $\approx 0$; per-area QWK $\approx 0.09$), confirming that always picking the common class is not competitive.
 
-To read these numbers: **QWK** (Quadratic Weighted Kappa) is our most appropriate headline metric because it respects ordering, penalising large misses more than adjacent ones (higher is better). **MAE** reports the average absolute distance between forecast and truth on the 0-4 scale (lower is better). **Accuracy** is exact-match rate and can look flattering under imbalance, while **Macro-F1** balances precision and recall across classes by giving each class equal weight.
+QWK (Quadratic Weighted Kappa) is our most appropriate headline metric because it respects ordering, penalising large misses more than adjacent ones (higher is better). MAE reports the average absolute distance between forecast and truth on the 0-4 scale (lower is better). Accuracy is exact-match rate and can look flattering under imbalance, while Macro-F1 balances precision and recall across classes by giving each class equal weight.
 
 The pattern suggests the test period is highly persistent and skewed toward lower hazard-there are no "High" days-so copying yesterday is often correct and unusually hard to beat. Although the neural model learns meaningful ordinal structure (clear gains over majority rules), it trails persistence on this particular window, likely due to strong day-to-day autocorrelation and a distribution shift between train and test.
 
@@ -1512,7 +1477,7 @@ plt.close(fig)  # avoid duplicate captures
 
 ```
 
-The matrix shows a clear **ordinal pattern**. Class 0 is predicted well (about $0.90$ on the diagonal), with a small spill into class 1. For class 1, only $\sim 0.39$ stays on the diagonal, and $\sim 0.58$ is pushed down to 0; the model tends to **under-forecast** when conditions are near the 0/1 boundary. Class 2 is mostly confused with undefined ($\approx 0.47$) and sometimes with 0 ($\approx 0.37$); only $\sim 0.16$ is correct. Class 3 is rarely predicted directly ($\sim 0.15$ diagonal) and is most often mapped to 1 ($\approx 0.52$) or 0 ($\approx 0.31$). There is effectively no reliable signal for class 4 in the test window (support is 1 and it is predicted as a 1), so per-class scores for 4 are unstable and shouldn't be over-interpreted.
+The matrix shows a clear ordinal pattern. Class 0 is predicted well (about $0.90$ on the diagonal), with a small spill into class 1. For class 1, only $\sim 0.39$ stays on the diagonal, and $\sim 0.58$ is pushed down to 0; the model tends to under-forecast when conditions are near the 0/1 boundary. Class 2 is mostly confused with undefined ($\approx 0.47$) and sometimes with 0 ($\approx 0.37$); only $\sim 0.16$ is correct. Class 3 is rarely predicted directly ($\sim 0.15$ diagonal) and is most often mapped to 1 ($\approx 0.52$) or 0 ($\approx 0.31$). There is effectively no reliable signal for class 4 in the test window (support is 1 and it is predicted as a 1), so per-class scores for 4 are unstable and shouldn't be over-interpreted.
 
 This pattern matches the aggregate metrics reported earlier: overall accuracy and MAE are reasonable, but Macro-F1 and QWK suffer because the model compresses higher hazards toward the centre/lower classes. In other words, most errors are one-step, downward mistakes, good for avoiding extreme over-calls but conservative relative to true highs.
 
@@ -1556,7 +1521,7 @@ latex = df.to_latex(
     index=False,
     escape=False,
     column_format="lrrrr",  # 1 left + 4 numeric
-    caption="Per-class precision, recall, F1 and support on the test set.",
+    caption="Per-class Precision, Recall, F1 and Support on the test set.",
     label="tbl:per-class"
 )
 print(latex.replace(r"\begin{table}", r"\begin{table}[ht]\centering"))
@@ -1709,7 +1674,7 @@ print(latex)
 ```
 
 We re-evaluated the test set twice: once using the tuned monotone thresholds $\tau = [0.52, 0.50, 0.50, 0.48]$\
-and once using flat $0.5$ cut-offs for all CORN logits. The two runs produced **identical** results:\
+and once using flat $0.5$ cut-offs for all CORN logits. The two runs produced identical results:\
 Accuracy $= 0.648$, Macro-F1 $= 0.295$, MAE $= 0.433$, QWK $= 0.390$.
 
 This tells us that, on this test window, threshold calibration **did not change any predicted labels**.\
@@ -1778,15 +1743,15 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 
 The held-out results paint a clear picture. Hazards in this period are highly persistent and skewed toward the lower levels, and the naive persistence rule ("predict today as yesterday within area") performs very strongly on all summary metrics. Our tuned LSTM-CORN improves markedly over the two majority baselines, but it does not beat persistence on this particular test window.
 
-### Metrics & Diagnostics
+### Metrics and diagnostics
 
 Accuracy and MAE are reasonable for the neural model, but the QWK and macro-F1 show performance drops higher up the scale. This is consistent with the near-diagonal confusion matrix that has a downward bias (Level 1 is often pushed to 0; Levels 2-3 are frequently mapped to 1) while extreme over-calls are rare. The error histogram shows most misses are within one category (consistent with MAE $\approx 0.43$): useful for avoiding false alarms, but conservative relative to true highs. Finally, threshold calibration had almost no effect (tuned $\tau \approx [0.52, 0.50, 0.50, 0.48]$ and gave identical results to 0.5), which implies the limiting factor is representation/sequence learning, not the label cut-offs.
 
-### Why persistence wins here
+### Factors underpinning Persistence performance 
 
 Two data realities favour the $y[t-1]$ rule:\
-(i) **strong day-to-day autocorrelation** in FAH;\
-(ii) **imbalance and shift:** the test window contains no "High" days and is dominated by Levels 0-1. In that regime, copying yesterday is genuinely hard to beat. The LSTM-CORN learns the ordinal structure and avoids wild swings, but with few upper-level examples and a short 10-day context, it struggles to escalate to 2-3 when the series does move.
+(i) strong day-to-day autocorrelation in FAH;\
+(ii) imbalance and shift: the test window contains no "High" days and is dominated by Levels 0-1. In that regime, copying yesterday is genuinely hard to beat. The LSTM-CORN learns the ordinal structure and avoids wild swings, but with few upper-level examples and a short 10-day context, it struggles to escalate to 2-3 when the series does move. Persistence is not affected by the data imbalance like the LSTM, and is in fact aided by it (response is more uniform for test set).
 
 ### Operational interpretation
 
@@ -1796,7 +1761,7 @@ If the near-term goal is to minimise false alarms, the current calibration is ac
 
 Conclusions are conditioned on this split: the test window lacks class 4 entirely and has very few class 3 days, so per-class scores at the top end are unstable. The dataset is modest for sequence models, labels may contain operational noise, and we restricted the model to observed histories (no external forecasts), which caps lead-time sensitivity. We mitigated leakage with forward-chaining folds and an embargo, but results will vary with split point and winter severity.
 
-### Possible Future Improvements
+### Possible future improvements
 
 Short-to-medium steps that fit the current pipeline:
 
@@ -1818,6 +1783,8 @@ From an operational perspective, the model is conservative and unlikely to produ
 
 Additional "High" days and further winters will help stabilise estimates at the upper levels. Overall, the method is interpretable and extensible. With targeted refinements, it has the potential to provide earlier and more reliable indicators of increasing avalanche hazard while maintaining a low false alarm rate.
 
+\newpage
+
 ## Statement on the use of AI (LLMs)
 
 ChatGPT (GPT-5 Thinking, GPT-4) was used as a supporting tool for planning, explanation, code syntax and polishing, and presentation. All final decisions, algorithmic design, checks, and writing are our own.
@@ -1830,10 +1797,10 @@ At the start, we shared the assignment brief and asked for a sensible three-way 
 
 #### 2) Code
 
--   **Data prep (R):**
+-   **Data prep (R):** LLMs were used to support the design of the data cleaning pipeline, including handling missing values, detecting outliers, and ensuring correct variable types. They also assisted with R syntax and efficient use of packages such as dplyr and tidymodels. Prompts were kept concise and outputs validated step by step to ensure reliability.
 -   **Modelling (PyTorch):** LLMs were used to brainstorm ideas around the architecture of the model and assess the feasibility and efficacy of different approaches. It was also used to get Python syntax and data structures correct, as we are not fluent in that language or the Pytorch library. Steps were followed to ensure best practice in the use of LLMs, such as conserving tokens were ever possible, through concise and specific prompts, and requested limited output unless otherwise prompted. Would the end of the context length was reached, we generated summaries of our chats and put them at the start of the following chat.
 
-### 3) Code polishing & integration
+#### 3) Code polishing & integration
 
 We used AI to make code presentable and navigable inside the report so a reader can follow the narrative and the code together:
 
@@ -1897,10 +1864,12 @@ Using an LLM mainly helped with structure, clarity, and polish while we kept con
 -   **Formatting and presentation:** It sped up figure/table styling for PDF (captions, labels, palettes, legends) and Quarto chunk hygiene (seeds, paths, cache). This helps save us time we could spend on analysis.
 -   **Consistency checks:** It was useful for quick passes on naming, units, date boundaries, and split logic, reducing accidental inconsistencies across sections.
 -   **Focused learning support:** For more complex sections (e.g., CORN thresholds, QWK) it provided explanations and examples for us to better understand the theory.
--   **Cognitive offloading:** It generated checklists, micro-templates, and alternative phrasings on demand, which helped us move faster without skipping the verification steps.
--   **Sanity checks:** It was useful for quick checks on validation design (forward-chaining + embargo), metric definitions, and common pitfalls. This saved us time while we kept control of decisions.
+-   **Rapid idea generation:** It generated checklists, micro-templates, and alternative phrasings on demand, which helped us move faster without skipping the verification steps.
+-   **Checkpoints:** It was useful for quick checks on validation design (forward-chaining + embargo), metric definitions, and common pitfalls. This saved us time while we kept control of decisions.
 
 Overall, the LLM worked like a sharp editor and sounding board: it helped us restructure, clarify, and polish, while we did the design, execution, and final judgement calls.
+
+\newpage
 
 ## References
 
@@ -1915,6 +1884,8 @@ Overall, the LLM worked like a sharp editor and sounding board: it helped us res
 -   Shi, X., Cao, W. and Raschka, S. (2021) 'Deep Neural Networks for Rank-Consistent Ordinal Regression Based on Conditional Probabilities', *arXiv preprint* arXiv:2111.08851. Available at: <https://arxiv.org/abs/2111.08851>.
 
 -   Lim, B. and Zohren, S. (2021) 'Time-series forecasting with deep learning: a survey', *Philosophical Transactions of the Royal Society A: Mathematical, Physical and Engineering Sciences*, 379(2194), 20200209. <https://doi.org/10.1098/rsta.2020.0209>.
+
+\newpage
 
 ## Appendix
 
@@ -2123,39 +2094,6 @@ print(p3a); print(p3b); print(p3c)
 ```
 
 ### Model / Results Figures
-
-```{python}
-#| fig-cap: "Confusion matrix on the test set; numbers show counts (top) and row-normalised rates (bottom)"
-#| results: "hide"
-# B1: Confusion matrix heatmap
-## confusion matrix (test)
-# yes
-import json, numpy as np, matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix
-
-npz = np.load("artifacts/test_preds_ytrue.npz")
-y_true, y_pred = npz["y_true"], npz["y_pred"]
-labels = [0,1,2,3,4]
-
-cm = confusion_matrix(y_true, y_pred, labels=labels)
-cmn = cm / cm.sum(axis=1, keepdims=True)
-
-fig, ax = plt.subplots(figsize=(6,5), dpi=150)
-im = ax.imshow(cmn, interpolation="nearest")
-ax.figure.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-ax.set(xticks=np.arange(len(labels)), yticks=np.arange(len(labels)),
-       xticklabels=labels, yticklabels=labels,
-       xlabel="Predicted FAH", ylabel="True FAH",
-       title="Confusion matrix (row-normalised)")
-for i in range(cmn.shape[0]):
-    for j in range(cmn.shape[1]):
-        ax.text(j, i, f"{cm[i,j]}\n({cmn[i,j]:.2f})",
-                ha="center", va="center", fontsize=8)
-fig.tight_layout()
-#fig.savefig("figs/B1_confusion_matrix.png")
-plt.show()
-
-```
 
 ```{python}
 #| fig-cap: "Per-class precision, recall, and F1 on the test set."
