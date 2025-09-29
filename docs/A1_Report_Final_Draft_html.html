@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>quarto-inputa64c215eccc62b5d – Avalanche Risk Prediction</title>
+<title>quarto-inputb5ce23036af68190 – Avalanche Risk Prediction</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -184,7 +184,7 @@ window.Quarto = {
   <li><a href="#ai-implementation-and-utilisation" id="toc-ai-implementation-and-utilisation" class="nav-link" data-scroll-target="#ai-implementation-and-utilisation">AI Implementation and utilisation</a></li>
   <li><a href="#verification-and-academic-integrity" id="toc-verification-and-academic-integrity" class="nav-link" data-scroll-target="#verification-and-academic-integrity">Verification and academic integrity</a></li>
   <li><a href="#representative-prompts" id="toc-representative-prompts" class="nav-link" data-scroll-target="#representative-prompts">Representative prompts</a></li>
-  <li><a href="#limits-of-the-ais-role" id="toc-limits-of-the-ais-role" class="nav-link" data-scroll-target="#limits-of-the-ais-role">Limits of the AI�s role</a></li>
+  <li><a href="#limits-of-the-ais-role" id="toc-limits-of-the-ais-role" class="nav-link" data-scroll-target="#limits-of-the-ais-role">Limits of the AI`s role</a></li>
   <li><a href="#benefits" id="toc-benefits" class="nav-link" data-scroll-target="#benefits">Benefits</a></li>
   </ul></li>
   <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
@@ -205,7 +205,7 @@ window.Quarto = {
 <section id="abstract" class="level2">
 <h2 class="anchored" data-anchor-id="abstract">Abstract</h2>
 <p>Forecast avalanche hazard (FAH) is reported on an ordered five-level scale, making the correct ordering of predictions as important as the exact class assignment. We build a modelling-ready dataset from operational observations in Scotland and cast next-day FAH as an ordinal forecasting problem. Data preparation standardises identifiers, audits and repairs missingness, applies physically sensible bounds, encodes circular variables with sine-cosine pairs, and adds seasonal day-of-year features. We split chronologically (80/20) with an embargo to avoid look-ahead.</p>
-<p>For modelling, we turn each area�s history into 10-day windows of dynamic features, fuse static site attributes, and train an LSTM with a CORN ordinal head that predicts <span class="math inline">\(K - 1\)</span> exceedance probabilities. Class imbalance is handled by oversampling rare classes in minibatches and class-balanced per-threshold weights in the loss. We then tune monotone thresholds on the most recent validation fold to convert probabilities into labels.</p>
+<p>For modelling, we turn each area`s history into 10-day windows of dynamic features, fuse static site attributes, and train an LSTM with a CORN ordinal head that predicts <span class="math inline">\(K - 1\)</span> exceedance probabilities. Class imbalance is handled by oversampling rare classes in minibatches and class-balanced per-threshold weights in the loss. We then tune monotone thresholds on the most recent validation fold to convert probabilities into labels.</p>
 <p>Validation uses forward-chaining time folds; evaluation on a held-out test window reports Accuracy, Macro-F1, MAE, and Quadratic Weighted Kappa (QWK). Compared with three simple baselines (global majority, per-area majority, and persistence), the LSTM-CORN model improves ordinal-aware agreement (QWK) and reduces absolute error (MAE), with most mistakes within one level of the truth. Limitations include scarcity of High hazard days and potential sensitivity to the temporal split, but the approach is reproducible and operationally realistic, and it provides a clear path to calibration and extension.</p>
 </section>
 <section id="introduction" class="level2">
@@ -248,8 +248,8 @@ window.Quarto = {
 </section>
 <section id="missingness-audit-and-design-of-indicators" class="level4">
 <h4 class="anchored" data-anchor-id="missingness-audit-and-design-of-indicators">Missingness audit and design of indicators</h4>
-<p>We measured missingness per variable and, where the absence was informative, created 0/1 ‘was-missing’ flags before any outlier recoding. These were made for: AV.cat, Ski.pen, Crystals, Wetness, Snow.Index, and summit weather fields (Wind Dir/Speed, Air Temp). Creating these early preserves the original data structure. Fields like Max.Temp.Grad, Max.Hardness.Grad are blank when no snow pit is done. So, we imputed those numeric blanks downstream rather than adding indicators.</p>
-<p><strong>Snow.Index check:</strong> Many values are exactly zero. We tested whether zeros signified ‘no test’ and found they did not, i.e., rows with zeros showed no elevated missingness in pit variables. We therefore kept zeros as valid measurements and treated only NAs as missing.</p>
+<p>We measured missingness per variable and, where the absence was informative, created 0/1 <code>was-missing</code> flags before any outlier recoding. These were made for: AV.cat, Ski.pen, Crystals, Wetness, Snow.Index, and summit weather fields (Wind Dir/Speed, Air Temp). Creating these early preserves the original data structure. Fields like Max.Temp.Grad, Max.Hardness.Grad are blank when no snow pit is done. So, we imputed those numeric blanks downstream rather than adding indicators.</p>
+<p><strong>Snow.Index check:</strong> Many values are exactly zero. We tested whether zeros signified <code>no test</code> and found they did not, i.e., rows with zeros showed no elevated missingness in pit variables. We therefore kept zeros as valid measurements and treated only NAs as missing.</p>
 </section>
 <section id="physically-defensible-plausibility-filters" class="level4">
 <h4 class="anchored" data-anchor-id="physically-defensible-plausibility-filters">Physically defensible plausibility filters</h4>
@@ -269,7 +269,7 @@ window.Quarto = {
 </li>
 <li>Maximum temperature gradient (<span class="math inline">\(^\circ\)</span>C/10 cm): values <span class="math inline">\(&gt; 10\)</span> set to NA.<br>
 </li>
-<li>Altitude (m): values <span class="math inline">\(&lt;0\)</span> or <span class="math inline">\(&gt;1400\)</span> set to NA (Scotland�s highest peak <span class="math inline">\(\approx 1345\)</span> m).</li>
+<li>Altitude (m): values <span class="math inline">\(&lt;0\)</span> or <span class="math inline">\(&gt;1400\)</span> set to NA (Scotland`s highest peak <span class="math inline">\(\approx 1345\)</span> m).</li>
 </ul>
 </section>
 <section id="altitude-repair-via-coordinate-based-elevation-lookup" class="level4">
@@ -324,12 +324,12 @@ window.Quarto = {
 <p>The neural network implementation was done in python, using PyTorch. Given the temporal component of the data, a recurrent network architecture was used over a standard feed-forward setup, which is incapable of “remembering” anything about past observations. Specifically, a Long Short Term Memory (LSTM) design was employed, which is less susceptible to vanishing and exploding gradients.</p>
 <section id="data-interface-and-temporal-windows" class="level4">
 <h4 class="anchored" data-anchor-id="data-interface-and-temporal-windows">Data interface and temporal windows</h4>
-<p>The data were split into sequences for the recurrent architecture. Static features (longitude, latitude, altitude, incline, area dummies) were held constant across sequences, while dynamic features comprised all remaining numeric variables and the missingness indicators. A new feature of the previous day�s hazard rating, <code>FAH_prev</code>, was created and added to the dynamic set.</p>
+<p>The data were split into sequences for the recurrent architecture. Static features (longitude, latitude, altitude, incline, area dummies) were held constant across sequences, while dynamic features comprised all remaining numeric variables and the missingness indicators. A new feature of the previous day<code>s hazard rating,</code>FAH_prev`, was created and added to the dynamic set.</p>
 <p>Area-wise sliding windows with look-back <span class="math inline">\(L = 10\)</span> days and horizon <span class="math inline">\(H = 0\)</span> were built with an embargo (Lim and Zohren, 2021; Eq. 2.1). The train/test split matches the R setup (<span class="math inline">\(80\%\)</span> earliest dates for training, remaining <span class="math inline">\(20\%\)</span> for testing), and windows were constructed after concatenation and filtered by the target date to prevent test leakage.</p>
 </section>
 <section id="architecture-and-loss-corn-lstm" class="level4">
 <h4 class="anchored" data-anchor-id="architecture-and-loss-corn-lstm">Architecture and loss (CORN-LSTM)</h4>
-<p>The LSTM�s final hidden state after being trained is passed through a small MLP head. Instead of using softmax over the class predictions and Cross-Entropy (CE) error, we used a technique called Cumulative Ordinal Regression for Neural Networks (CORN). The CORN layer follows the MLP head, and produces <span class="math inline">\(K - 1\)</span> logits that are then used to determine progress through a set of ordered binaries on whether a prediction is of a certain class, <span class="math inline">\(\Pr(y &gt; 0)\)</span>, <span class="math inline">\(\Pr(y &gt; 1)\)</span>, <span class="math inline">\(\ldots\)</span>, <span class="math inline">\(\Pr(y &gt; K - 2)\)</span>. Because these events become harder as <span class="math inline">\(k\)</span> grows, their probabilities naturally decrease with <span class="math inline">\(k\)</span> (Cao, Mirjalili and Raschka, 2020).</p>
+<p>The LSTM`s final hidden state after being trained is passed through a small MLP head. Instead of using softmax over the class predictions and Cross-Entropy (CE) error, we used a technique called Cumulative Ordinal Regression for Neural Networks (CORN). The CORN layer follows the MLP head, and produces <span class="math inline">\(K - 1\)</span> logits that are then used to determine progress through a set of ordered binaries on whether a prediction is of a certain class, <span class="math inline">\(\Pr(y &gt; 0)\)</span>, <span class="math inline">\(\Pr(y &gt; 1)\)</span>, <span class="math inline">\(\ldots\)</span>, <span class="math inline">\(\Pr(y &gt; K - 2)\)</span>. Because these events become harder as <span class="math inline">\(k\)</span> grows, their probabilities naturally decrease with <span class="math inline">\(k\)</span> (Cao, Mirjalili and Raschka, 2020).</p>
 <p>During training, We compute CORN targets from the true class and minimise Binary Cross-Entropy (BCE) on the <span class="math inline">\(K - 1\)</span> logits. At inference, we threshold the <span class="math inline">\(K - 1\)</span> probabilities, count how many exceed their thresholds, and that count is the predicted FAH level. This approach is superior to CE error, which treats classes as nominal, and does not distinguish between degrees of misclassification.</p>
 </section>
 <section id="class-imbalance-handling" class="level4">
@@ -375,7 +375,7 @@ window.Quarto = {
 </li>
 <li>a <strong>per-area majority</strong> classifier that uses the most frequent FAH level within each area (assigned to that area in test), and<br>
 </li>
-<li>a <strong>persistence</strong> rule <span class="math inline">\(\hat{y}_t = y_{t-1}\)</span> within area, with a majority fallback for an area�s first test day.</li>
+<li>a <strong>persistence</strong> rule <span class="math inline">\(\hat{y}_t = y_{t-1}\)</span> within area, with a majority fallback for an area`s first test day.</li>
 </ol>
 <p>We report the same metrics used for the neural model (Accuracy, Macro-F1, MAE, QWK) to enable direct comparison.</p>
 <div style="page-break-after: always;"></div>
@@ -387,142 +387,141 @@ window.Quarto = {
 <p>We evaluate the tuned LSTM-CORN on the held-out test window and compare it with three simple baselines.<br>
 All settings were fixed before touching the test set. We report Accuracy, Macro-F1, MAE, and Quadratic Weighted Kappa (QWK);<br>
 a confusion matrix and per-class summary show where errors occur.</p>
-<pre><code></code></pre>
 <section id="class-balance-train-vs-test" class="level3">
 <h3 class="anchored" data-anchor-id="class-balance-train-vs-test">Class Balance: Train vs Test</h3>
 <p>Higher hazard levels are rare, and the distribution also shifts over time. In our split the High level does not occur in the test window, which matters for both training and evaluation. The table below shows the proportion of each FAH level within each split (percents within Train/Test):</p>
 <style type="text/css">
-#T_2b528 th {
+#T_e7079 th {
   text-align: right;
 }
-#T_2b528 td {
+#T_e7079 td {
   text-align: right;
 }
-#T_2b528 caption {
+#T_e7079 caption {
   caption-side: top;
   font-weight: 600;
 }
-#T_2b528_row0_col0, #T_2b528_row1_col0, #T_2b528_row2_col0, #T_2b528_row3_col0, #T_2b528_row4_col0 {
+#T_e7079_row0_col0, #T_e7079_row1_col0, #T_e7079_row2_col0, #T_e7079_row3_col0, #T_e7079_row4_col0 {
   text-align: left;
   white-space: nowrap;
 }
 </style>
-<table id="T_2b528" class="table table-sm table-striped">
+<table id="T_e7079" class="table table-sm table-striped">
 <caption>
 FAH class balance by split.
 </caption>
 <thead>
 <tr>
-<th id="T_2b528_level0_col0" class="col_heading level0 col0">
+<th id="T_e7079_level0_col0" class="col_heading level0 col0">
 </th>
-<th id="T_2b528_level0_col1" class="col_heading level0 col1" colspan="2">
+<th id="T_e7079_level0_col1" class="col_heading level0 col1" colspan="2">
 count
 </th>
-<th id="T_2b528_level0_col3" class="col_heading level0 col3" colspan="2">
+<th id="T_e7079_level0_col3" class="col_heading level0 col3" colspan="2">
 percent
 </th>
 </tr>
 <tr>
-<th id="T_2b528_level1_col0" class="col_heading level1 col0">
+<th id="T_e7079_level1_col0" class="col_heading level1 col0">
 FAH level
 </th>
-<th id="T_2b528_level1_col1" class="col_heading level1 col1">
+<th id="T_e7079_level1_col1" class="col_heading level1 col1">
 Test
 </th>
-<th id="T_2b528_level1_col2" class="col_heading level1 col2">
+<th id="T_e7079_level1_col2" class="col_heading level1 col2">
 Train
 </th>
-<th id="T_2b528_level1_col3" class="col_heading level1 col3">
+<th id="T_e7079_level1_col3" class="col_heading level1 col3">
 Test
 </th>
-<th id="T_2b528_level1_col4" class="col_heading level1 col4">
+<th id="T_e7079_level1_col4" class="col_heading level1 col4">
 Train
 </th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td id="T_2b528_row0_col0" class="data row0 col0">
+<td id="T_e7079_row0_col0" class="data row0 col0">
 0
 </td>
-<td id="T_2b528_row0_col1" class="data row0 col1">
+<td id="T_e7079_row0_col1" class="data row0 col1">
 1,209
 </td>
-<td id="T_2b528_row0_col2" class="data row0 col2">
+<td id="T_e7079_row0_col2" class="data row0 col2">
 2,222
 </td>
-<td id="T_2b528_row0_col3" class="data row0 col3">
+<td id="T_e7079_row0_col3" class="data row0 col3">
 57.3%
 </td>
-<td id="T_2b528_row0_col4" class="data row0 col4">
+<td id="T_e7079_row0_col4" class="data row0 col4">
 26.3%
 </td>
 </tr>
 <tr>
-<td id="T_2b528_row1_col0" class="data row1 col0">
+<td id="T_e7079_row1_col0" class="data row1 col0">
 1
 </td>
-<td id="T_2b528_row1_col1" class="data row1 col1">
+<td id="T_e7079_row1_col1" class="data row1 col1">
 644
 </td>
-<td id="T_2b528_row1_col2" class="data row1 col2">
+<td id="T_e7079_row1_col2" class="data row1 col2">
 2,593
 </td>
-<td id="T_2b528_row1_col3" class="data row1 col3">
+<td id="T_e7079_row1_col3" class="data row1 col3">
 30.5%
 </td>
-<td id="T_2b528_row1_col4" class="data row1 col4">
+<td id="T_e7079_row1_col4" class="data row1 col4">
 30.7%
 </td>
 </tr>
 <tr>
-<td id="T_2b528_row2_col0" class="data row2 col0">
+<td id="T_e7079_row2_col0" class="data row2 col0">
 2
 </td>
-<td id="T_2b528_row2_col1" class="data row2 col1">
+<td id="T_e7079_row2_col1" class="data row2 col1">
 171
 </td>
-<td id="T_2b528_row2_col2" class="data row2 col2">
+<td id="T_e7079_row2_col2" class="data row2 col2">
 2,327
 </td>
-<td id="T_2b528_row2_col3" class="data row2 col3">
+<td id="T_e7079_row2_col3" class="data row2 col3">
 8.1%
 </td>
-<td id="T_2b528_row2_col4" class="data row2 col4">
+<td id="T_e7079_row2_col4" class="data row2 col4">
 27.5%
 </td>
 </tr>
 <tr>
-<td id="T_2b528_row3_col0" class="data row3 col0">
+<td id="T_e7079_row3_col0" class="data row3 col0">
 3
 </td>
-<td id="T_2b528_row3_col1" class="data row3 col1">
+<td id="T_e7079_row3_col1" class="data row3 col1">
 84
 </td>
-<td id="T_2b528_row3_col2" class="data row3 col2">
+<td id="T_e7079_row3_col2" class="data row3 col2">
 849
 </td>
-<td id="T_2b528_row3_col3" class="data row3 col3">
+<td id="T_e7079_row3_col3" class="data row3 col3">
 4.0%
 </td>
-<td id="T_2b528_row3_col4" class="data row3 col4">
+<td id="T_e7079_row3_col4" class="data row3 col4">
 10.0%
 </td>
 </tr>
 <tr>
-<td id="T_2b528_row4_col0" class="data row4 col0">
+<td id="T_e7079_row4_col0" class="data row4 col0">
 4
 </td>
-<td id="T_2b528_row4_col1" class="data row4 col1">
+<td id="T_e7079_row4_col1" class="data row4 col1">
 1
 </td>
-<td id="T_2b528_row4_col2" class="data row4 col2">
+<td id="T_e7079_row4_col2" class="data row4 col2">
 458
 </td>
-<td id="T_2b528_row4_col3" class="data row4 col3">
+<td id="T_e7079_row4_col3" class="data row4 col3">
 0.0%
 </td>
-<td id="T_2b528_row4_col4" class="data row4 col4">
+<td id="T_e7079_row4_col4" class="data row4 col4">
 5.4%
 </td>
 </tr>
@@ -534,7 +533,7 @@ Train
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-35-1.png" class="img-fluid figure-img" width="480"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-34-1.png" class="img-fluid figure-img" width="480"></p>
 <figcaption>Bar Plot illustrating FAH class balance by split.</figcaption>
 </figure>
 </div>
@@ -552,110 +551,110 @@ Table&nbsp;1
 </figcaption>
 <div aria-describedby="tbl-metrics-html-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <style type="text/css">
-#T_51706 th {
+#T_268a1 th {
   text-align: right;
 }
-#T_51706 td {
+#T_268a1 td {
   text-align: right;
 }
-#T_51706 caption {
+#T_268a1 caption {
   caption-side: top;
   font-weight: 600;
 }
-#T_51706_row0_col0, #T_51706_row1_col0, #T_51706_row2_col0, #T_51706_row3_col0 {
+#T_268a1_row0_col0, #T_268a1_row1_col0, #T_268a1_row2_col0, #T_268a1_row3_col0 {
   text-align: left;
   white-space: nowrap;
 }
 </style>
-<table id="T_51706" class="table table-sm table-striped">
+<table id="T_268a1" class="table table-sm table-striped">
 <caption>
 Performance comparison between LSTM-CORN and baseline models.
 </caption>
 <thead>
 <tr>
-<th id="T_51706_level0_col0" class="col_heading level0 col0">
+<th id="T_268a1_level0_col0" class="col_heading level0 col0">
 Model
 </th>
-<th id="T_51706_level0_col1" class="col_heading level0 col1">
+<th id="T_268a1_level0_col1" class="col_heading level0 col1">
 Accuracy
 </th>
-<th id="T_51706_level0_col2" class="col_heading level0 col2">
+<th id="T_268a1_level0_col2" class="col_heading level0 col2">
 Macro-F1
 </th>
-<th id="T_51706_level0_col3" class="col_heading level0 col3">
+<th id="T_268a1_level0_col3" class="col_heading level0 col3">
 MAE
 </th>
-<th id="T_51706_level0_col4" class="col_heading level0 col4">
+<th id="T_268a1_level0_col4" class="col_heading level0 col4">
 QWK
 </th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td id="T_51706_row0_col0" class="data row0 col0">
+<td id="T_268a1_row0_col0" class="data row0 col0">
 LSTM-CORN (tuned tau)
 </td>
-<td id="T_51706_row0_col1" class="data row0 col1">
+<td id="T_268a1_row0_col1" class="data row0 col1">
 0.640
 </td>
-<td id="T_51706_row0_col2" class="data row0 col2">
+<td id="T_268a1_row0_col2" class="data row0 col2">
 0.299
 </td>
-<td id="T_51706_row0_col3" class="data row0 col3">
+<td id="T_268a1_row0_col3" class="data row0 col3">
 0.438
 </td>
-<td id="T_51706_row0_col4" class="data row0 col4">
+<td id="T_268a1_row0_col4" class="data row0 col4">
 0.406
 </td>
 </tr>
 <tr>
-<td id="T_51706_row1_col0" class="data row1 col0">
+<td id="T_268a1_row1_col0" class="data row1 col0">
 Majority (global)
 </td>
-<td id="T_51706_row1_col1" class="data row1 col1">
+<td id="T_268a1_row1_col1" class="data row1 col1">
 0.305
 </td>
-<td id="T_51706_row1_col2" class="data row1 col2">
+<td id="T_268a1_row1_col2" class="data row1 col2">
 0.094
 </td>
-<td id="T_51706_row1_col3" class="data row1 col3">
+<td id="T_268a1_row1_col3" class="data row1 col3">
 0.735
 </td>
-<td id="T_51706_row1_col4" class="data row1 col4">
+<td id="T_268a1_row1_col4" class="data row1 col4">
 0.000
 </td>
 </tr>
 <tr>
-<td id="T_51706_row2_col0" class="data row2 col0">
+<td id="T_268a1_row2_col0" class="data row2 col0">
 Majority (per-area)
 </td>
-<td id="T_51706_row2_col1" class="data row2 col1">
+<td id="T_268a1_row2_col1" class="data row2 col1">
 0.393
 </td>
-<td id="T_51706_row2_col2" class="data row2 col2">
+<td id="T_268a1_row2_col2" class="data row2 col2">
 0.200
 </td>
-<td id="T_51706_row2_col3" class="data row2 col3">
+<td id="T_268a1_row2_col3" class="data row2 col3">
 0.755
 </td>
-<td id="T_51706_row2_col4" class="data row2 col4">
+<td id="T_268a1_row2_col4" class="data row2 col4">
 0.090
 </td>
 </tr>
 <tr>
-<td id="T_51706_row3_col0" class="data row3 col0">
+<td id="T_268a1_row3_col0" class="data row3 col0">
 Persistence (y[t-1])
 </td>
-<td id="T_51706_row3_col1" class="data row3 col1">
+<td id="T_268a1_row3_col1" class="data row3 col1">
 0.719
 </td>
-<td id="T_51706_row3_col2" class="data row3 col2">
+<td id="T_268a1_row3_col2" class="data row3 col2">
 0.456
 </td>
-<td id="T_51706_row3_col3" class="data row3 col3">
+<td id="T_268a1_row3_col3" class="data row3 col3">
 0.329
 </td>
-<td id="T_51706_row3_col4" class="data row3 col4">
+<td id="T_268a1_row3_col4" class="data row3 col4">
 0.659
 </td>
 </tr>
@@ -665,110 +664,110 @@ Persistence (y[t-1])
 </figure>
 </div>
 <style type="text/css">
-#T_36a21 th {
+#T_75244 th {
   text-align: right;
 }
-#T_36a21 td {
+#T_75244 td {
   text-align: right;
 }
-#T_36a21 caption {
+#T_75244 caption {
   caption-side: top;
   font-weight: 600;
 }
-#T_36a21_row0_col0, #T_36a21_row1_col0, #T_36a21_row2_col0, #T_36a21_row3_col0 {
+#T_75244_row0_col0, #T_75244_row1_col0, #T_75244_row2_col0, #T_75244_row3_col0 {
   text-align: left;
   white-space: nowrap;
 }
 </style>
-<table id="T_36a21" class="table table-sm table-striped">
+<table id="T_75244" class="table table-sm table-striped">
 <caption>
 Test-set performance: model vs baselines.
 </caption>
 <thead>
 <tr>
-<th id="T_36a21_level0_col0" class="col_heading level0 col0">
+<th id="T_75244_level0_col0" class="col_heading level0 col0">
 Model
 </th>
-<th id="T_36a21_level0_col1" class="col_heading level0 col1">
+<th id="T_75244_level0_col1" class="col_heading level0 col1">
 Accuracy
 </th>
-<th id="T_36a21_level0_col2" class="col_heading level0 col2">
+<th id="T_75244_level0_col2" class="col_heading level0 col2">
 Macro-F1
 </th>
-<th id="T_36a21_level0_col3" class="col_heading level0 col3">
+<th id="T_75244_level0_col3" class="col_heading level0 col3">
 MAE
 </th>
-<th id="T_36a21_level0_col4" class="col_heading level0 col4">
+<th id="T_75244_level0_col4" class="col_heading level0 col4">
 QWK
 </th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td id="T_36a21_row0_col0" class="data row0 col0">
+<td id="T_75244_row0_col0" class="data row0 col0">
 LSTM-CORN (tuned tau)
 </td>
-<td id="T_36a21_row0_col1" class="data row0 col1">
+<td id="T_75244_row0_col1" class="data row0 col1">
 0.640
 </td>
-<td id="T_36a21_row0_col2" class="data row0 col2">
+<td id="T_75244_row0_col2" class="data row0 col2">
 0.299
 </td>
-<td id="T_36a21_row0_col3" class="data row0 col3">
+<td id="T_75244_row0_col3" class="data row0 col3">
 0.438
 </td>
-<td id="T_36a21_row0_col4" class="data row0 col4">
+<td id="T_75244_row0_col4" class="data row0 col4">
 0.406
 </td>
 </tr>
 <tr>
-<td id="T_36a21_row1_col0" class="data row1 col0">
+<td id="T_75244_row1_col0" class="data row1 col0">
 Majority (global)
 </td>
-<td id="T_36a21_row1_col1" class="data row1 col1">
+<td id="T_75244_row1_col1" class="data row1 col1">
 0.305
 </td>
-<td id="T_36a21_row1_col2" class="data row1 col2">
+<td id="T_75244_row1_col2" class="data row1 col2">
 0.094
 </td>
-<td id="T_36a21_row1_col3" class="data row1 col3">
+<td id="T_75244_row1_col3" class="data row1 col3">
 0.735
 </td>
-<td id="T_36a21_row1_col4" class="data row1 col4">
+<td id="T_75244_row1_col4" class="data row1 col4">
 0.000
 </td>
 </tr>
 <tr>
-<td id="T_36a21_row2_col0" class="data row2 col0">
+<td id="T_75244_row2_col0" class="data row2 col0">
 Majority (per-area)
 </td>
-<td id="T_36a21_row2_col1" class="data row2 col1">
+<td id="T_75244_row2_col1" class="data row2 col1">
 0.393
 </td>
-<td id="T_36a21_row2_col2" class="data row2 col2">
+<td id="T_75244_row2_col2" class="data row2 col2">
 0.200
 </td>
-<td id="T_36a21_row2_col3" class="data row2 col3">
+<td id="T_75244_row2_col3" class="data row2 col3">
 0.755
 </td>
-<td id="T_36a21_row2_col4" class="data row2 col4">
+<td id="T_75244_row2_col4" class="data row2 col4">
 0.090
 </td>
 </tr>
 <tr>
-<td id="T_36a21_row3_col0" class="data row3 col0">
+<td id="T_75244_row3_col0" class="data row3 col0">
 Persistence (y[t-1])
 </td>
-<td id="T_36a21_row3_col1" class="data row3 col1">
+<td id="T_75244_row3_col1" class="data row3 col1">
 0.719
 </td>
-<td id="T_36a21_row3_col2" class="data row3 col2">
+<td id="T_75244_row3_col2" class="data row3 col2">
 0.456
 </td>
-<td id="T_36a21_row3_col3" class="data row3 col3">
+<td id="T_75244_row3_col3" class="data row3 col3">
 0.329
 </td>
-<td id="T_36a21_row3_col4" class="data row3 col4">
+<td id="T_75244_row3_col4" class="data row3 col4">
 0.659
 </td>
 </tr>
@@ -793,7 +792,7 @@ Persistence (y[t-1])
 </section>
 <section id="confusion-matrix-and-per-class-report" class="level3">
 <h3 class="anchored" data-anchor-id="confusion-matrix-and-per-class-report">Confusion Matrix and Per-Class Report</h3>
-<p>The matrix shows a clear <strong>ordinal pattern</strong>. Class 0 is predicted well (about <span class="math inline">\(0.90\)</span> on the diagonal), with a small spill into class 1. For class 1, only <span class="math inline">\(\sim 0.39\)</span> stays on the diagonal, and <span class="math inline">\(\sim 0.58\)</span> is pushed down to 0; the model tends to <strong>under-forecast</strong> when conditions are near the 0/1 boundary. Class 2 is mostly confused with undefined (<span class="math inline">\(\approx 0.47\)</span>) and sometimes with 0 (<span class="math inline">\(\approx 0.37\)</span>); only <span class="math inline">\(\sim 0.16\)</span> is correct. Class 3 is rarely predicted directly (<span class="math inline">\(\sim 0.15\)</span> diagonal) and is most often mapped to 1 (<span class="math inline">\(\approx 0.52\)</span>) or 0 (<span class="math inline">\(\approx 0.31\)</span>). There is effectively no reliable signal for class 4 in the test window (support is 1 and it is predicted as a 1), so per-class scores for 4 are unstable and shouldn�t be over-interpreted.</p>
+<p>The matrix shows a clear <strong>ordinal pattern</strong>. Class 0 is predicted well (about <span class="math inline">\(0.90\)</span> on the diagonal), with a small spill into class 1. For class 1, only <span class="math inline">\(\sim 0.39\)</span> stays on the diagonal, and <span class="math inline">\(\sim 0.58\)</span> is pushed down to 0; the model tends to <strong>under-forecast</strong> when conditions are near the 0/1 boundary. Class 2 is mostly confused with undefined (<span class="math inline">\(\approx 0.47\)</span>) and sometimes with 0 (<span class="math inline">\(\approx 0.37\)</span>); only <span class="math inline">\(\sim 0.16\)</span> is correct. Class 3 is rarely predicted directly (<span class="math inline">\(\sim 0.15\)</span> diagonal) and is most often mapped to 1 (<span class="math inline">\(\approx 0.52\)</span>) or 0 (<span class="math inline">\(\approx 0.31\)</span>). There is effectively no reliable signal for class 4 in the test window (support is 1 and it is predicted as a 1), so per-class scores for 4 are unstable and shouldn`t be over-interpreted.</p>
 <p>This pattern matches the aggregate metrics reported earlier: overall accuracy and MAE are reasonable, but Macro-F1 and QWK suffer because the model compresses higher hazards toward the centre/lower classes. In other words, most errors are one-step, downward mistakes, good for avoiding extreme over-calls but conservative relative to true highs.</p>
 <p>If the operational goal is to catch more 2-3 days (accepting some extra false alarms), you could lower the upper CORN thresholds slightly or use a cost-sensitive tuning target. If the priority is minimising over-warnings, the current calibration is aligned with that objective.</p>
 <pre><code>      Class  precision  recall  f1-score  support</code></pre>
@@ -813,79 +812,79 @@ Persistence (y[t-1])
 <h3 class="anchored" data-anchor-id="effect-of-threshold-calibration">Effect of Threshold Calibration</h3>
 <p>Tuned monotone thresholds are intended to improve ordinal agreement over the default <span class="math inline">\(0.5\)</span> cut-offs.</p>
 <style type="text/css">
-#T_2afa5 th {
+#T_00254 th {
   text-align: right;
 }
-#T_2afa5 td {
+#T_00254 td {
   text-align: right;
 }
-#T_2afa5 caption {
+#T_00254 caption {
   caption-side: top;
   font-weight: 600;
 }
-#T_2afa5_row0_col0, #T_2afa5_row1_col0 {
+#T_00254_row0_col0, #T_00254_row1_col0 {
   text-align: left;
   white-space: nowrap;
 }
-#T_2afa5_row0_col1, #T_2afa5_row0_col2, #T_2afa5_row0_col3, #T_2afa5_row0_col4, #T_2afa5_row1_col1, #T_2afa5_row1_col2, #T_2afa5_row1_col3, #T_2afa5_row1_col4 {
+#T_00254_row0_col1, #T_00254_row0_col2, #T_00254_row0_col3, #T_00254_row0_col4, #T_00254_row1_col1, #T_00254_row1_col2, #T_00254_row1_col3, #T_00254_row1_col4 {
   font-weight: 700;
 }
 </style>
-<table id="T_2afa5" class="table table-sm table-striped">
+<table id="T_00254" class="table table-sm table-striped">
 <caption>
 Performance comparison between tuned <span class="math inline">\(\tau\)</span> cutoffs and a flat 0.5 cutoff.
 </caption>
 <thead>
 <tr>
-<th id="T_2afa5_level0_col0" class="col_heading level0 col0">
+<th id="T_00254_level0_col0" class="col_heading level0 col0">
 Cutoffs
 </th>
-<th id="T_2afa5_level0_col1" class="col_heading level0 col1">
+<th id="T_00254_level0_col1" class="col_heading level0 col1">
 Accuracy
 </th>
-<th id="T_2afa5_level0_col2" class="col_heading level0 col2">
+<th id="T_00254_level0_col2" class="col_heading level0 col2">
 Macro-F1
 </th>
-<th id="T_2afa5_level0_col3" class="col_heading level0 col3">
+<th id="T_00254_level0_col3" class="col_heading level0 col3">
 MAE
 </th>
-<th id="T_2afa5_level0_col4" class="col_heading level0 col4">
+<th id="T_00254_level0_col4" class="col_heading level0 col4">
 QWK
 </th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td id="T_2afa5_row0_col0" class="data row0 col0">
+<td id="T_00254_row0_col0" class="data row0 col0">
 tuned <span class="math inline">\(\tau\)</span>
 </td>
-<td id="T_2afa5_row0_col1" class="data row0 col1">
+<td id="T_00254_row0_col1" class="data row0 col1">
 0.640
 </td>
-<td id="T_2afa5_row0_col2" class="data row0 col2">
+<td id="T_00254_row0_col2" class="data row0 col2">
 0.299
 </td>
-<td id="T_2afa5_row0_col3" class="data row0 col3">
+<td id="T_00254_row0_col3" class="data row0 col3">
 0.438
 </td>
-<td id="T_2afa5_row0_col4" class="data row0 col4">
+<td id="T_00254_row0_col4" class="data row0 col4">
 0.406
 </td>
 </tr>
 <tr>
-<td id="T_2afa5_row1_col0" class="data row1 col0">
+<td id="T_00254_row1_col0" class="data row1 col0">
 0.5 flat
 </td>
-<td id="T_2afa5_row1_col1" class="data row1 col1">
+<td id="T_00254_row1_col1" class="data row1 col1">
 0.640
 </td>
-<td id="T_2afa5_row1_col2" class="data row1 col2">
+<td id="T_00254_row1_col2" class="data row1 col2">
 0.299
 </td>
-<td id="T_2afa5_row1_col3" class="data row1 col3">
+<td id="T_00254_row1_col3" class="data row1 col3">
 0.438
 </td>
-<td id="T_2afa5_row1_col4" class="data row1 col4">
+<td id="T_00254_row1_col4" class="data row1 col4">
 0.406
 </td>
 </tr>
@@ -895,8 +894,8 @@ tuned <span class="math inline">\(\tau\)</span>
 and once using flat <span class="math inline">\(0.5\)</span> cut-offs for all CORN logits. The two runs produced identical results:<br>
 Accuracy <span class="math inline">\(= 0.648\)</span>, Macro-F1 <span class="math inline">\(= 0.295\)</span>, MAE <span class="math inline">\(= 0.433\)</span>, QWK <span class="math inline">\(= 0.390\)</span>.</p>
 <p>This tells us that, on this test window, threshold calibration did not change any predicted labels.<br>
-That is consistent with two facts: (i) the tuned <span class="math inline">\(\tau\)</span> are very close to <span class="math inline">\(0.5\)</span>, and (ii) most cumulative probabilities were far from the decision boundaries, so nudging thresholds within <span class="math inline">\(0.48\)</span>-<span class="math inline">\(0.52\)</span> doesn�t flip classes.</p>
-<p>This implies the model�s test performance is driven by the sequence model and learned representations, rather than by the post-hoc thresholds. We keep the tuned <span class="math inline">\(\tau\)</span> for completeness and because they can help when class balance shifts, but we do <strong>not</strong> claim a test-set gain from calibration here. If thresholding becomes more influential (e.g., under stronger distribution shift), broader grids, direct QWK optimisation, or area-specific <span class="math inline">\(\tau\)</span> could be explored.</p>
+That is consistent with two facts: (i) the tuned <span class="math inline">\(\tau\)</span> are very close to <span class="math inline">\(0.5\)</span>, and (ii) most cumulative probabilities were far from the decision boundaries, so nudging thresholds within <span class="math inline">\(0.48\)</span>-<span class="math inline">\(0.52\)</span> doesn`t flip classes.</p>
+<p>This implies the model`s test performance is driven by the sequence model and learned representations, rather than by the post-hoc thresholds. We keep the tuned <span class="math inline">\(\tau\)</span> for completeness and because they can help when class balance shifts, but we do <strong>not</strong> claim a test-set gain from calibration here. If thresholding becomes more influential (e.g., under stronger distribution shift), broader grids, direct QWK optimisation, or area-specific <span class="math inline">\(\tau\)</span> could be explored.</p>
 </section>
 <section id="error-shape" class="level3">
 <h3 class="anchored" data-anchor-id="error-shape">Error Shape</h3>
@@ -1038,7 +1037,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <p>In each case, we reviewed/edited the draft and ran the code to confirm it worked with our data.</p>
 </section>
 <section id="limits-of-the-ais-role" class="level3">
-<h3 class="anchored" data-anchor-id="limits-of-the-ais-role">Limits of the AI�s role</h3>
+<h3 class="anchored" data-anchor-id="limits-of-the-ais-role">Limits of the AI`s role</h3>
 <ul>
 <li><strong>No autonomous analysis:</strong> AI did not choose the final methodology, set hyperparameters, or produce final results. Those came from our group�s design, runs, and checks.<br>
 </li>
@@ -1098,7 +1097,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-41-9.png" class="img-fluid figure-img" width="576"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-40-9.png" class="img-fluid figure-img" width="576"></p>
 <figcaption>Proportion of FAH levels in the train and test splits (row-level)</figcaption>
 </figure>
 </div>
@@ -1108,7 +1107,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-42-1.png" class="img-fluid figure-img" width="480"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-41-1.png" class="img-fluid figure-img" width="480"></p>
 <figcaption>Percentage of missing values by variable (top 25).</figcaption>
 </figure>
 </div>
@@ -1118,7 +1117,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-48-1.png" class="img-fluid figure-img" width="576"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-47-1.png" class="img-fluid figure-img" width="576"></p>
 <figcaption>Observed vs imputed distributions.</figcaption>
 </figure>
 </div>
@@ -1126,7 +1125,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-48-2.png" class="img-fluid figure-img" width="576"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-47-2.png" class="img-fluid figure-img" width="576"></p>
 <figcaption>Observed vs imputed distributions.</figcaption>
 </figure>
 </div>
@@ -1134,7 +1133,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-48-3.png" class="img-fluid figure-img" width="576"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-47-3.png" class="img-fluid figure-img" width="576"></p>
 <figcaption>Observed vs imputed distributions.</figcaption>
 </figure>
 </div>
@@ -1147,7 +1146,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-49-1.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-48-1.png" class="img-fluid figure-img" width="672"></p>
 <figcaption>Per-class precision, recall, and F1 on the test set.</figcaption>
 </figure>
 </div>
@@ -1157,7 +1156,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-50-3.png" class="img-fluid figure-img" width="864"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-49-3.png" class="img-fluid figure-img" width="864"></p>
 <figcaption>Comparison of the neural model to baselines on QWK (higher is better) and MAE (lower is better).</figcaption>
 </figure>
 </div>
@@ -1167,7 +1166,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-51-5.png" class="img-fluid figure-img" width="480"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-50-5.png" class="img-fluid figure-img" width="480"></p>
 <figcaption>Tuned CORN decision thresholds (<span class="math inline">\(\tau\)</span>) used to convert probabilities into ordinal labels.</figcaption>
 </figure>
 </div>
@@ -1177,7 +1176,7 @@ in an ordinal setting, most misclassifications are near misses. Operationally, t
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-52-7.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="A1_Report_Final_Draft_html_files/figure-html/unnamed-chunk-51-7.png" class="img-fluid figure-img" width="672"></p>
 <figcaption>Proportion of FAH levels at the window level (what the LSTM actually trained on) in train vs test.</figcaption>
 </figure>
 </div>

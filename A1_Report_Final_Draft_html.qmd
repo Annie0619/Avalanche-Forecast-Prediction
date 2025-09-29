@@ -1297,7 +1297,7 @@ wide = (
 )
 
 # Flatten the multi-index columns into readable names
-wide.columns = [f"{b} {`rows` if a==`count` else `%`}" for a,b in wide.columns]
+wide.columns = [f"{b} {'rows' if a=='count' else '%'}" for a,b in wide.columns]
 wide = wide.reset_index().rename(columns={"FAH":"FAH level"})
 
 # Format percentages
@@ -2340,7 +2340,7 @@ axes[1].set_title("Mean Absolute Error")
 axes[1].invert_xaxis()  # visually align "better" to the left
 
 for ax in axes:
-    ax.grid(axis='x', linestyle=':`, alpha=0.5)
+    ax.grid(axis='x', linestyle=':', alpha=0.5)
 
 fig.suptitle("Model vs. baselines on test")
 fig.tight_layout()
