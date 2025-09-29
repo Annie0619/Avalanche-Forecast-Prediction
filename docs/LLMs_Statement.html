@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Avalanche Forecast Prediction – Avalanche Risk Prediction</title>
+<title>Statement on the use of AI (LLMs) – Avalanche Risk Prediction</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -122,7 +122,7 @@ window.Quarto = {
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
-    <a class="nav-link active" href="./index.html" aria-current="page"> 
+    <a class="nav-link" href="./index.html"> 
 <span class="menu-text">Home</span></a>
   </li>  
   <li class="nav-item">
@@ -152,7 +152,7 @@ window.Quarto = {
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Avalanche Forecast Prediction</h1>
+<h1 class="title">Statement on the use of AI (LLMs)</h1>
 </div>
 
 
@@ -169,7 +169,70 @@ window.Quarto = {
 </header>
 
 
-<p>This is the project page for Dani, Andomei and Christopher.</p>
+<p>ChatGPT (GPT-5 Thinking, GPT-4) was used as a supporting tool for planning, explanation, code syntax and polishing, and presentation. All final decisions, algorithmic design, checks, and writing are our own.</p>
+<p>AI Implementation and utilisation</p>
+<ol type="1">
+<li>Ideas &amp; planning (high-level, non-code)</li>
+</ol>
+<p>At the start, we shared the assignment brief and asked for a sensible three-way split to manage scope and timelines (data preparation, modelling, and report integration). The initial split helped us coordinate responsibilities, and we adapted it to our context. See the following link: (https://chatgpt.com/share/68d91860-f4a4-8006-ae9c-06e71721af0a).</p>
+<ol start="2" type="1">
+<li>Code</li>
+</ol>
+<p>Data prep (R):</p>
+<p>Modelling (PyTorch): LLMs were used to brainstorm ideas around the architecture of the model and assess the feasibility and efficacy of different approaches. It was also used to get Python syntax and data structures correct, as we are not fluent in that language or the Pytorch library. Steps were followed to ensure best practice in the use of LLMs, such as conserving tokens were ever possible, through concise and specific prompts, and requested limited output unless otherwise prompted. Would the end of the context length was reached, we generated summaries of our chats and put them at the start of the following chat.</p>
+<ol start="3" type="1">
+<li>Code polishing &amp; integration</li>
+</ol>
+<p>We used AI to make code presentable and navigable inside the report so a reader can follow the narrative and the code together:</p>
+<p>Refactored and streamlined/condensed code blocks (docstrings, clearer names, comments) without changing logic.</p>
+<p>Added Quarto-friendly chunks (labels, captions, seeds) so outputs render reproducibly in PDF, this was especially utilised for Python chunks.</p>
+<p>Wrote small utilities for CORN threshold tuning, evaluation, and plotting (confusion-matrix heatmap, metric tables), and debugged minor issues.</p>
+<p>Double-checked that the time split and folds prevented leakage, and that train/test separation was respected in every data path.</p>
+<p>Any AI-suggested code was run directly by us, and retained only if it was correct, readable, and consistent with our pipeline.</p>
+<ol start="4" type="1">
+<li>Writing (supplementary assistance - we retained authorial control)</li>
+</ol>
+<p>We used AI as an editor and explainer, not as an author. It helped with coverage checks, clarity, and presentation. We kept control of the structure, final wording, and all technical claims.</p>
+<p>Coverage audit of Methods vs code: We asked AI to cross-check that everything happening in the code is actually described in the text (e.g., sequence construction, forward-chaining folds with an embargo, CORN targets and loss, threshold tuning, baselines). It flagged a few gaps and we filled them. Anything inaccurate was discarded.</p>
+<p>Plain-language tightening: It suggested alternative phrasings for the LSTM/CORN/QWK explanations and helped trim repetition so sections read cleanly without losing technical meaning.</p>
+<p>Flow and structure: It helped reorder sentences and add short signposts so paragraphs read as a narrative rather than a list of steps. However, overall narrative flow in the report is above the current abilities of AI (or at least for it to be done well and efficiently), so this was done independently.</p>
+<p>Captions and presentation: It drafted first-pass figure/table captions, and we then aligned labels, units, and legends (e.g., rows=true/cols=pred in the confusion matrix, and helped provide metric definitions for us to include under the comparison table).</p>
+<p>Consistency sweep: We used it to spot inconsistencies in symbols and names (e.g., FAH_ord, <span class="math inline">\(K\)</span>, <span class="math inline">\(\tau\)</span>), units (<span class="math inline">\(^\circ C\)</span>, cm, m/s), and split terminology (“train/test”, “validation fold”), and then standardised them across the report.</p>
+<p>Word-count management: It helped us condense our abstract, introduction, and conclusion into more concise versions. We only kept edits that preserved our meaning and emphasis.</p>
+<p>Micro-explanations for readers: Where code terms might block understanding (e.g., “oversampling”, “class-balanced loss”), it helped draft one-line, non-jargony explanations that we then rewrote in our own words and integrated within our written report.</p>
+<p>As a way of keeping authorship and accuracy, we wrote the first drafts ourselves. AI suggestions were used as options, not final text. We rewrote text in our voice, verified technical statements against the code and outputs, and removed anything we did not understand. All numbers, metrics, thresholds, and plots were produced and checked by us.</p>
+<p>Verification and academic integrity</p>
+<p>We executed every included code cell and verified shapes, date boundaries, splits, and metrics. We cross-checked explanations against the source code and cited literature. Where AI proposed code or text we didn’t fully understand, we reworked it or removed it. All preprocessing parameters were fit by us on the training set and applied to test via a baked pipeline; seeds and caches were used for reproducibility.</p>
+<p>Representative prompts</p>
+<p>These examples reflect how we used AI (from our initial scoping and idea generation, through iterative prompt refinement, to final verification checks):</p>
+<p>Planning: “Given this brief, propose a practical 3-way task split and a checklist of outputs/figures we’ll need. Keep it realistic for a short timeline.”</p>
+<p>Method design: “In 3 to 4 sentences, justify forward-chaining validation with an embargo for next-day avalanche hazard. Operationally, not mathematically.”</p>
+<p>Learning the ordinal head (CORN): “I’m reading the Shi, Cao, and Raschka paper and not fully grasping it. Why use <span class="math inline">\(K - 1\)</span> logits for <span class="math inline">\(P(y &gt; k)\)</span>? How are targets built directly from labels, and how do monotone thresholds turn those probabilities into one class? Please explain in plain English with a tiny <span class="math inline">\(K = 5\)</span> example and common pitfalls so I can understand this theory better.”</p>
+<p>Imbalance rationale: “In a couple of sentences, explain why we oversample in batches and use class-balanced weights (<span class="math inline">\(\beta = 0.999\)</span>) for CORN. Emphasise rare exceedances without inventing data.”</p>
+<p>Results narrative: “Turn this metrics table (Accuracy, Macro-F1, MAE, QWK) into a brief, neutral comparison vs baselines. Additionally, explain what each metric means in one line so that I can try include a brief definitions when I introduce them”</p>
+<p>Figure polish (Quarto/PDF): “Give a captioned confusion-matrix heatmap (rows=true, cols=pred) with a readable palette and percent labels. Make it knitr/Quarto-ready.”</p>
+<p>Quarto snippets: “Produce labelled, captioned chunks for a confusion-matrix figure and a formatted metrics table suitable for PDF export.”</p>
+<p>Abstract tightening: “Cut this abstract to around 150 words. Keep aims (LSTM+CORN), time-aware validation, key metrics, and one-line takeaway.”</p>
+<p>In each case, we reviewed/edited the draft and ran the code to confirm it worked with our data.</p>
+<p>Limits of the AI’s role</p>
+<p>No autonomous analysis: AI did not choose the final methodology, set hyperparameters, or produce final results. Those came from our group’s design, runs, and checks.</p>
+<p>No blind copying: We avoided pasting large blocks of AI generated text or code. Anything kept was edited and verified by us.</p>
+<p>Potential inaccuracies: LLMs can be wrong or overconfident. We treated explanations as suggestions, then validated against code and papers.</p>
+<p>No access to private data or execution: AI did not run our experiments or access hidden datasets. We executed everything locally and controlled random seeds/caches.</p>
+<p>Authorship and accountability: All interpretation, synthesis, and conclusions are ours. The AI’s role was assistive, not determinative.</p>
+<p>Benefits</p>
+<p>Using an LLM mainly helped with structure, clarity, and polish while we kept control of the ideas, code, and results.</p>
+<p>Editorial shaping: It can take a rough draft and provide insights into how to make it more concise and appropriate for a scientific report, by suggesting tightening sentences. This allows us to still keep our tone and intent intact.</p>
+<p>Clarity through compression: It reduces repetition and surfaces the main argument, which helped us get to the core of what we were trying to say (especially in terms of structuring a Methods Section and when trying to integrate a short literature review inside the Introduction).</p>
+<p>Decomposing chaotic sections: When a section felt messy, offered points on how to reorganised it into digestible pieces (clear paragraphs, headings, short lists) so readers can follow the logic.</p>
+<p>Audience-fit translation: It can help turn code-heavy or jargony passages into plain-English explanations that are self-contained, so the report stands on its own without the reader opening the code.</p>
+<p>Code ideation &amp; efficiency: Once we were clear on intent, it proposed cleaner patterns (small utilities, vectorised operations, reusable plotting functions). We only kept changes that we verified improved readability or runtime without altering results.</p>
+<p>Formatting and presentation: It sped up figure/table styling for PDF (captions, labels, palettes, legends) and Quarto chunk hygiene (seeds, paths, cache). This helps save us time we could spend on analysis.</p>
+<p>Consistency checks: It was useful for quick passes on naming, units, date boundaries, and split logic, reducing accidental inconsistencies across sections.</p>
+<p>Focused learning support: For more complex sections (e.g., CORN thresholds, QWK) it provided explanations and examples for us to better understand the theory.</p>
+<p>Cognitive offloading: It generated checklists, micro-templates, and alternative phrasings on demand, which helped us move faster without skipping the verification steps.</p>
+<p>Sanity checks: It was useful for quick checks on validation design (forward-chaining + embargo), metric definitions, and common pitfalls. This saved us time while we kept control of decisions.</p>
+<p>Overall, the LLM worked like a sharp editor and sounding board: it helped us restructure, clarify, and polish, while we did the design, execution, and final judgement calls.</p>
 
 
 

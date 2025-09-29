@@ -29,7 +29,7 @@ execute:
 \vspace{1.5cm}
 {\LARGE Assignment 1 - Report \par}
 \vspace{2cm}
-{\Large Christopher Allpass-Jackson \par}
+{\Large Christopher Allpass-Jackson (ALLCHR011) \par}
 {\Large Andomei Smit \par}
 {\Large Daniela Stevenson (STVDAN011) \par}
 \vfill

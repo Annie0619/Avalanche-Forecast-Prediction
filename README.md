@@ -1,9 +1,5 @@
-# Reproduce this Quarto report
-
-## Prereqs
-- Install either **mamba** (recommended) or **conda**.
-  - If you have conda only, replace `mamba` with `conda` in the commands below.
-- No need to install R or Quarto system-wide; both are inside the environment.
+ALLCHR011.qmd will create a virtual environment automatically in the first chunk that will satisfy dependencies. 
+However, if you wish to do it from command line, first have conda (or mamba) installed. 
 
 Run this in your shell before doing anything with the qmd. 
 
