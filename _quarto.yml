@@ -3,14 +3,14 @@ project:
   output-dir: docs
 
 website:
-  title: "A Quarto Website"
+  title: "Avalanche Risk Prediction"
   navbar:
     left:
       - href: index.qmd
         text: Home
-      - data_prep_eda.qmd
-      - multiplication.qmd
-
+      - A1_Report_Final_Draft_html.qmd
+      - LLMs_statement.qmd
+      
 format:
   html:
     theme: cosmo
