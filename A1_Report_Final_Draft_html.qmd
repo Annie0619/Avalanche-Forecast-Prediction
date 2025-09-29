@@ -204,7 +204,7 @@ aval <- aval %>%
 
 #### Spatial consistency checks
 
-We examined whether OS grids denote unique points. Longitude and latitude vary within OS grids, indicating that an OS grid represents an area rather than a single coordinate. Altitude is not constant within OS grids. Accordingly, altitude should not be imputed from the OS grid identifier alone: since each grid covers heterogeneous terrain, we instead query elevation using the precise latitude-longitude coordinates.
+We examined whether OS grids denote unique points. Longitude and latitude vary within OS grids, meaning that multiple longitude and latitude pairs had the same OS grids, indicating that an OS grid represents an area rather than a single coordinate.
 
 ```{r}
 # Spacial Checks
@@ -290,7 +290,9 @@ dup_summary <- tibble(
 
 #### Missingness audit and design of indicators
 
-We first measured missingness per variable and inspected its pattern. Where the absence itself could be informative, we created explicit 0/1 "was-missing" flags (before any outlier recoding). These indicators were made for: AV.cat, Ski.pen, Crystals, Wetness, Snow.Index, and the summit weather fields (Summit.Wind.Dir, Summit.Wind.Speed, Summit.Air.Temp). Doing this early ensures the indicators reflect the data as collected and aren't confounded by later plausibility filters.
+We first measured missingness per variable and inspected its pattern. Where the absence itself could be informative, we created explicit 0/1 "was-missing" flags (before any outlier recoding). The idea is that if conditions were severe enough to prevent field teams from collecting measurements, then the missingness itself carries information, and this signal should be retained in the dataset.
+
+These indicators were made for: AV.cat, Ski.pen, Crystals, Wetness, Snow.Index, and the summit weather fields (Summit.Wind.Dir, Summit.Wind.Speed, Summit.Air.Temp). Doing this early ensures the indicators reflect the data as collected and aren't confounded by later plausibility filters.
 
 Some fields (e.g., Max.Temp.Grad, Max.Hardness.Grad) are only measured when a snow pit is carried out. When no pit is done those fields are blank by design, so we did not add extra "missing" indicators; instead, we impute those numeric blanks downstream for modelling.
 
@@ -331,12 +333,12 @@ aval <- aval %>%
 We applied conservative real-world plausibility checks and recoded any violations to `NA` so they can be handled by imputation rather than ad-hoc edits. The limits reflect basic constraints (e.g., angles in $0{-}360^\circ$, non-negative depths) and local context.
 
 -   Directional variables (Aspect, Wind.Dir, Summit.Wind.Dir): values outside $[0^\circ, 360^\circ]$ set to `NA`.\
--   Snow temperature ($^\circ$C): values $> 5$ set to NA (snow cannot persist above $\sim 0^\circ$C; a small buffer accommodates sensor and entry noise).\
+-   Snow temperature ($^\circ$C): values $> 5^\circ$C set to NA (snow cannot persist above $\sim 0^\circ$C; a small buffer accommodates sensor and entry noise).\
 -   Insolation (index): values outside $0{-}20$ set to NA.\
 -   Incline ($^\circ$): values $<0$ or $>90$ set to NA.\
 -   Foot penetration (cm): values $<0$ or $>100$ set to NA.\
 -   Total snow depth (cm): values $<0$ or $>500$ set to NA (regional plausibility).\
--   Maximum temperature gradient ($^\circ$C/10 cm): values $> 10$ set to NA.\
+-   Maximum temperature gradient (assumed to be measured as $^\circ$C/10 cm): values $> 10$ set to NA.\
 -   Altitude (m): values $<0$ or $>1400$ set to NA (Scotland's highest peak $\approx 1345$ m).
 
 Marking impossible readings as `NA` prevents them from skewing summaries or model fits and lets the downstream multivariate imputer estimate plausible replacements from the remaining data.
@@ -380,9 +382,9 @@ rules_tbl <- tribble(
 
 ```
 
-#### Altitude repair via coordinate-based elevation lookup
+#### Altitude repair via coordinate-based altitude lookup
 
-For the small number of missing altitudes, we queried an open elevation service at rounded (`latitude`, `longitude`) and filled `Alt` where a value was returned. One queried coordinate yielded $0$ m (a sea-loch), indicating a geolocation error. For that single case, we replaced the coordinate with the area mean (Creag Meagaidh) and re-queried. To ensure deterministic compilation, elevation results are cached locally; subsequent runs read from cache if the service is unavailable.
+For the small number of missing altitudes, we queried an open altitude service at rounded (`latitude`, `longitude`) pairs and filled `Alt` where a value was returned. One queried coordinate yielded $0$ m (a sea-loch), indicating a geolocation error. For that single case, we replaced the coordinate with the area mean (Creag Meagaidh) and re-queried. To ensure deterministic compilation, altitude results are cached locally; subsequent runs read from cache if the service is unavailable.
 
 ```{r}
 ### Open-Elevation lookup with simple CSV cache for determinism
@@ -453,7 +455,7 @@ if (nrow(to_fill) > 0) {
 
 #### Circular encodings for directional variables
 
-**Circular encodings for directional variables.** Because angles wrap around at $360^\circ$, treating them as ordinary numbers creates an artificial jump between $359^\circ$ and $0^\circ$. We therefore replaced each directional variable (`Wind.Dir`, `Summit.Wind.Dir`, `Aspect`) with two new variables that locate the direction on the unit circle: the sine and cosine of the angle (in radians). This keeps $0^\circ$ and $360^\circ$ close in feature space, and removes the wrap-around discontinuity, which helps and yields smoother relationships for the models. Missing angles remained missing in both components and were imputed later.
+Because angles wrap around at $360^\circ$, treating them as ordinary numbers creates an artificial jump between values such as $359^\circ$ and $0^\circ$. We therefore replaced each directional variable (`Wind.Dir`, `Summit.Wind.Dir`, `Aspect`) with two new variables that locate the direction on the unit circle: the sine and cosine of the angle (in radians). This keeps directions like $0^\circ$ and $360^\circ$ close in feature space, and removes the wrap-around discontinuity, which yields smoother relationships for the models. Missing angles remained missing in both components and were imputed later.
 
 ```{r}
 ### Encode angles as circular after cleaning
@@ -471,7 +473,9 @@ aval <- aval %>%
 
 #### Time-aware splitting and leakage control
 
-The data was split chronologically into $80\%$ training and $20\%$ test by calendar time (no overlap).Any rows missing a `Date` or the target (`FAH_ord`) were dropped before the split. We checked class balance in each split; the High level is very rare and does not appear in the test window (so performance on that class cannot be evaluated). All preprocessing steps were fit on the training set only (e.g., imputation, scaling, encoding) and then applied unchanged to the test set. This setup avoids information leakage.
+Since the dataset is comprised of time-series data, it was split chronologically into $80\%$ training and $20\%$ test by calendar time (no overlap). Any rows missing a `Date` or the target (`FAH_ord`) were removed before the split. A clear class imbalanced was noticed within the train and test split; the High level is very rare and does not appear in the test window.
+
+For dealing with missing values, all preprocessing steps were fit on the training set only (e.g., imputation, scaling, encoding) and then applied unchanged to the test set. This setup avoids information leakage.
 
 ```{r}
 ### Chronological split 80/20; drop missing Date/FAH before split
@@ -501,15 +505,15 @@ class_tab <- rbind(
 A single, train-fitted `recipes` pipeline was implemented with the following stages:
 
 1.  **Column exclusion:** Dropped identifiers and free text, raw time stamps, and raw angles: `OSgrid`, `Location`, `Date`, `DateTime`, raw `Wind.Dir`, raw `Summit.Wind.Dir`, and raw `Aspect`. The raw target FAH was excluded in favour of `FAH_ord`.\
-2.  **Rare-level consolidation:** Collapsed very rare categorical levels to `"other"` using $\texttt{threshold} = 0.005$ to avoid sparse dummies.\
+2.  **Rare-level consolidation:** Collapsed very rare categorical levels to `"other"` using $\texttt{threshold} = 0.005$ to avoid sparse dummies when creating one-hot encoded variables.\
 3.  **Imputation:** Categorical variables were imputed by mode; numerical variables by bagged-tree imputation (bootstrap ensembles estimated on the training data), which captures non-linearities and interactions in mixed meteorological and snowpack features more effectively than mean or KNN imputation.\
-4.  **Encoding:** One-hot encoding of categorical predictors (including `Area`).\
-5.  **Variance filtering:** Removal of zero-variance and near-zero-variance predictors.\
-6.  **Scaling:** Standardisation of numerical predictors, excluding the 0/1 informative-missing indicators (and area dummies) to preserve their interpretability.\
-7.  **Seasonality:** Replacement of discrete season dummies with smooth cyclical features $doy\_sin$ and $doy\_cos$ (constructed from day-of-year with leap years handled); season binaries were removed to reduce collinearity.\
-8.  **Target mapping:** The ordered response was mapped once to integers $0{-}4$ to provide a single source of truth for neural-network models.
+4.  **Encoding:** One-hot encoding of categorical predictors (including `Area`) was used.\
+5.  **Variance filtering:** Predictors with zero-variance and near-zero-variance were removed since they would add little to none predictive power.\
+6.  **Scaling:** All numerical predictors were standardised, excluding the 0/1 informative-missing indicators (and area dummies) to preserve their interpretability.\
+7.  **Seasonality:** The discrete season dummies were replaced with smooth cyclical features $doy\_sin$ and $doy\_cos$ (constructed from day-of-year with leap years handled); season binaries were removed to reduce collinearity.\
+8.  **Target mapping:** The ordered response (`FAH_ord)` was mapped to integers $0{-}4$ to provide a single source of truth for neural-network models.
 
-The recipe was prepped on the training set (estimating imputation models, encoding maps, and scaling parameters) and then baked on both training and test splits to yield model-ready matrices (`x_train`, `x_test`). For downstream modelling and plotting, a `Date` column was retained; final matrices ($X\_{train}$, $X\_{test}$) include the integer-encoded target as the last column.
+The recipe was prepped on the training set (estimating imputation models, encoding maps, and scaling parameters) and then applied to both training and test splits to yield model-ready matrices (`x_train`, `x_test`). For downstream modelling and plotting, a `Date` column was retained; final matrices ($X\_{train}$, $X\_{test}$) include the integer-encoded target as the last column.
 
 ```{r}
 ### Build recipes pipeline (fit on TRAIN only, then bake to both splits)
@@ -585,14 +589,14 @@ write.csv(X_test,  "X_test.csv",  row.names = FALSE)
 
 #### Reproducibility, diagnostics, and assumptions
 
-We fixed random seeds and kept all data-prep and modelling steps in a single scripted pipeline so that results are reproducible across runs. After baking the recipe, there were no remaining missing values in either split. We re-checked the composite key (`Date`, `OSgrid`, `Area`) after duplicate handling, and we spot-checked distributions of imputed variables to make sure they looked reasonable (plots not shown for space). Elevation queries are cached locally, so reruns do not depend on the external service.
+We fixed random seeds and kept all data-prep and modelling steps in a single scripted pipeline so that results are reproducible across runs. After applying (i.e. baking) the recipe, there were no remaining missing values in either split. We re-checked the composite key (`Date`, `OSgrid`, `Area`) after duplicate handling, and we spot-checked distributions of imputed variables to make sure they looked reasonable (plots not shown for space). Altitude queries are cached locally, so reruns do not depend on the external service.
 
 Our working assumptions were:\
 (i) the value ranges we used to flag implausible measurements reflect Scottish conditions;\
 (ii) `Snow.Index == 0` is a **valid zero** (stable conditions), not a stand-in for "no test"; and\
 (iii) the "informative-missing" indicators genuinely capture absence at the time of collection rather than artefacts created later in cleaning.
 
-####  Limitations and sensitivity considerations
+#### Limitations and sensitivity considerations
 
 The High hazard class is rare (and absent in our test window) so standard accuracy alone can be misleading. We therefore report macro-averaged scores and discuss calibration in the results, but performance on the very rarest conditions remains uncertain. The plausibility cut-offs (e.g., the threshold for snow temperature) are conservative choices, not unique truths; reasonable alternatives could be used, and results may shift slightly.\
 Finally, because we split by time, outcomes can vary with the split date (e.g., if conditions change from one season to the next). This is typical in operational forecasting; sensitivity checks (e.g., alternate split points or small variations in thresholds and look-back length) would be a natural extension.
